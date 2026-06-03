@@ -1,0 +1,4 @@
+interface:
+  display_name: "ECNU API"
+  short_description: "Use ECNU LLM Open Platform APIs and examples."
+  default_prompt: "Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API."
