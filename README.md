@@ -7,6 +7,7 @@ This skill helps compatible AI agents answer questions and write integrations
 for:
 
 - OpenAI-compatible chat completions
+- OpenAI-compatible Responses API
 - Vision / multimodal chat
 - Embeddings and rerank
 - Image generation
@@ -52,19 +53,19 @@ Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API.
 
 ## Validate
 
-After installing the official
+Run the official
 [`skills-ref`](https://github.com/agentskills/agentskills/tree/main/skills-ref)
-reference validator, run:
+reference validator with `uv`:
 
 ```bash
-skills-ref validate /path/to/ecnu-api
+uvx --from skills-ref agentskills validate /path/to/ecnu-api
 ```
 
 On Windows PowerShell, force UTF-8 when the system locale is not UTF-8:
 
 ```powershell
 $env:PYTHONUTF8 = "1"
-skills-ref validate C:\path\to\ecnu-api
+uvx --from skills-ref agentskills validate C:\path\to\ecnu-api
 ```
 
 ## Official Documentation
@@ -78,6 +79,7 @@ production-critical details against the official ECNU developer docs:
 - https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/models.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/completions.html
+- https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/vision.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/imagegenerate.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/embedding.html
