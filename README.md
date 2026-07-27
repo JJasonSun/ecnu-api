@@ -17,8 +17,16 @@ for:
 
 ## Install
 
-Clone or copy this repository into the skills directory used by your
-Agent Skills-compatible client. Keep the installed directory name as
+Install with the open Skills CLI:
+
+```bash
+npx skills add JJasonSun/ecnu-api
+```
+
+See the skill on [skills.sh](https://skills.sh/jjasonsun/ecnu-api/ecnu-api).
+
+Alternatively, clone or copy this repository into the skills directory used by
+your Agent Skills-compatible client. Keep the installed directory name as
 `ecnu-api`, because the Agent Skills specification requires it to match the
 `name` in `SKILL.md`.
 
