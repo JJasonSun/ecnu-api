@@ -1,9 +1,10 @@
-# ECNU API Codex Skill
+# ECNU API Agent Skill
 
-Unofficial community Codex skill for working with the ECNU / ChatECNU LLM Open
-Platform API.
+Unofficial community [Agent Skill](https://agentskills.io/) for working with the
+ECNU / ChatECNU LLM Open Platform API.
 
-This skill helps Codex answer questions and write integrations for:
+This skill helps compatible AI agents answer questions and write integrations
+for:
 
 - OpenAI-compatible chat completions
 - Vision / multimodal chat
@@ -16,28 +17,19 @@ This skill helps Codex answer questions and write integrations for:
 
 ## Install
 
-Copy or clone this folder into your Codex skills directory:
+Clone or copy this repository into the skills directory used by your
+Agent Skills-compatible client. Keep the installed directory name as
+`ecnu-api`, because the Agent Skills specification requires it to match the
+`name` in `SKILL.md`.
 
-Windows PowerShell:
+The exact skills directory depends on the client. For example:
 
-```powershell
-Copy-Item -Recurse D:\Workspace\ecnu-api $env:USERPROFILE\.codex\skills\ecnu-api
+```text
+<client-skills-directory>/ecnu-api/SKILL.md
 ```
 
-macOS or Linux:
-
-```bash
-mkdir -p ~/.codex/skills
-cp -R /path/to/ecnu-api ~/.codex/skills/ecnu-api
-```
-
-From a Git clone on macOS or Linux:
-
-```bash
-git clone <your-repo-url> ~/.codex/skills/ecnu-api
-```
-
-Then invoke it with prompts such as:
+Once installed, ask the agent to work with the ECNU API. Clients that support
+explicit skill invocation may also accept prompts such as:
 
 ```text
 Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API.
@@ -49,24 +41,22 @@ Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API.
 - `references/api_reference.md`: endpoint summaries and request/response notes.
 - `references/models.md`: models, aliases, credits, quotas, and errors.
 - `references/examples.md`: short Python SDK and direct HTTP examples.
-- `agents/openai.yaml`: Codex UI metadata.
 
 ## Validate
 
-This repository uses `uv` for the validation environment. The validator depends
-on `PyYAML`, which is listed in `pyproject.toml`.
+After installing the official
+[`skills-ref`](https://github.com/agentskills/agentskills/tree/main/skills-ref)
+reference validator, run:
 
-Windows PowerShell:
+```bash
+skills-ref validate /path/to/ecnu-api
+```
+
+On Windows PowerShell, force UTF-8 when the system locale is not UTF-8:
 
 ```powershell
 $env:PYTHONUTF8 = "1"
-uv run --group dev python C:\Users\Jason\.codex\skills\.system\skill-creator\scripts\quick_validate.py D:\Workspace\ecnu-api
-```
-
-macOS or Linux:
-
-```bash
-PYTHONUTF8=1 uv run --group dev python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py /path/to/ecnu-api
+skills-ref validate C:\path\to\ecnu-api
 ```
 
 ## Official Documentation

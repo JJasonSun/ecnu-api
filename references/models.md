@@ -26,6 +26,9 @@
 - ECNU states that listed models are locally deployed on campus servers by
   default. In special cases such as upgrades, failures, or heavy load, cloud
   fallback may be used temporarily to maintain continuity.
+- ChatECNU, the Agent platform, and other campus-specific AI applications use
+  separate service clusters to improve stability.
+- Check current model availability at https://chat.ecnu.edu.cn/status.
 
 ## Compatibility Aliases
 
@@ -184,5 +187,6 @@ Validation errors may use an array:
 ## Official Sources
 
 - Models: https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- Service status: https://chat.ecnu.edu.cn/status
 - Quotas: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html

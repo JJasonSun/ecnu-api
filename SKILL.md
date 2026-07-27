@@ -4,10 +4,11 @@ description: >
   ECNU (East China Normal University) LLM Open Platform API integration.
   Provides OpenAI-compatible chat completions, embeddings, rerank, image
   generation, TTS, vision, structured output, and Anthropic-compatible API
-  access. Use when Codex needs to call ECNU or ChatECNU LLM APIs, write code for
-  chat.ecnu.edu.cn endpoints, configure Claude Code or Anthropic SDK against
-  ECNU, or answer questions about ECNU API authentication, models, quotas,
-  errors, prompts, or terms. Triggers: "ecnu api", "ECNU 大模型",
+  access. Use when an AI agent needs to call ECNU or ChatECNU LLM APIs, write
+  code for chat.ecnu.edu.cn endpoints, configure an OpenAI- or
+  Anthropic-compatible client against ECNU, or answer questions about ECNU API
+  authentication, models, quotas, errors, prompts, or terms. Triggers:
+  "ecnu api", "ECNU 大模型",
   "华东师范大学 API", "ChatECNU", "chat.ecnu.edu.cn", "ecnu-plus",
   "ecnu-max", "ecnu-embedding-small", "ecnu-rerank", "ecnu-image",
   "ecnu-tts".
@@ -77,6 +78,8 @@ Read these files based on the task:
 - All listed models are locally deployed on campus servers by default. ECNU
   notes that cloud fallback may be used temporarily in special cases such as
   upgrades, failures, or overload.
+- ChatECNU, the Agent platform, and other campus-specific AI applications route
+  requests to separate service clusters for stability.
 - Avoid parallel API calls; wait for each response before sending the next
   request for better stability.
 - Credits are consumed for all API calls. The unified credits quota algorithm
@@ -95,6 +98,7 @@ Read these files based on the task:
 When precision matters, verify against the official ECNU developer docs:
 
 - Models: https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- Service status: https://chat.ecnu.edu.cn/status
 - Authorization: https://developer.ecnu.edu.cn/vitepress/llm/authorization.html
 - Quotas: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html
