@@ -72,8 +72,9 @@ not add a unit. The Anthropic page separately describes `ecnu-max[1m]` as 1M
 characters for Anthropic tools.
 
 Prefer the model page over older endpoint examples when model names conflict.
-For example, the vision page still shows `ecnu-vl`; use `ecnu-plus` for new
-integrations and retain `ecnu-vl` only for compatibility.
+The former vision page now redirects to the Chat Completions multimodal
+section; use `ecnu-plus` for new image-understanding integrations and retain
+`ecnu-vl` only for compatibility.
 
 ## Critical Request Contracts
 

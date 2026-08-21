@@ -171,9 +171,10 @@ mapping as the Anthropic-compatible API.
 
 ## Vision
 
-Vision uses the Chat Completions endpoint. Prefer `ecnu-plus`. The dedicated
-vision page still shows `ecnu-vl`, but the newer model page defines it as a
-compatibility alias for `ecnu-plus`.
+Vision uses the Chat Completions endpoint. Prefer `ecnu-plus`. The former
+dedicated vision page now redirects to the completions page's multimodal
+section, which documents `ecnu-plus` multimodal messages; the model page
+defines `ecnu-vl` as a compatibility alias for `ecnu-plus`.
 
 Use an array of content parts:
 
@@ -513,7 +514,10 @@ fields in the schema, and allocate enough `max_tokens` for the complete value.
 POST https://chat.ecnu.edu.cn/open/api/embed/app
 ```
 
-This experimental integration supports JSON or URL-encoded form data.
+This experimental integration supports JSON or URL-encoded form data. The
+official page also describes an SSO-based embed mode for systems already
+integrated with the campus identity service; no API is published for that
+mode.
 
 | Field | JSON type | Required | Meaning |
 |---|---|---|---|

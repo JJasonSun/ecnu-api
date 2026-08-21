@@ -31,9 +31,9 @@ this order:
 5. Use `GET /models` for runtime discovery, while remembering that aliases and
    capabilities may require the documentation for interpretation.
 
-Example: the vision endpoint page still names `ecnu-vl`, while the newer model
-page says `ecnu-vl` is a compatibility alias for `ecnu-plus`. New integrations
-should use `ecnu-plus`.
+Example: the former vision page now redirects to the completions page's
+multimodal section, and the model page defines `ecnu-vl` as a compatibility
+alias for `ecnu-plus`. New integrations should use `ecnu-plus`.
 
 ## Primary Dialog Models
 
@@ -194,8 +194,10 @@ it. If thinking is disabled, `reasoning_effort` has no effect.
 ```
 
 Higher intensity produces more thorough reasoning but increases latency and
-token consumption. When thinking is enabled, `temperature` and `top_p` may not
-take effect or may be restricted; prefer defaults.
+token consumption. When thinking is enabled without an explicit effort value,
+the default follows model preference; specify `reasoning_effort` explicitly
+for stable results. When thinking is enabled, `temperature` and `top_p` may
+not take effect or may be restricted; prefer defaults.
 
 ### Multi-turn Splicing
 
@@ -356,7 +358,7 @@ credits before applying backoff.
 | Date | Change |
 |---|---|
 | 2026-08-10 (v3.2.1) | `ecnu-max` supports `reasoning_effort`; Anthropic API supports `output_config.effort`; Responses API supports `reasoning.effort`; compatibility layer auto-removes images from `ecnu-max` requests; bug fixes for streaming quota errors and empty-stream handling |
-| 2026-08-09 | Docs: model page adds default-parameter guidance (`temperature`/`top_p` per underlying model docs) and a local deployment & data security section; security and developer-agreement (tos) pages published, including the 90-day default token validity |
+| 2026-08-09 | Docs: model page adds default-parameter guidance (`temperature`/`top_p` per underlying model docs) and a local deployment & data security section; security and developer-agreement (tos) pages published, including the 90-day default token validity; vision page folded into the completions page multimodal section |
 | 2026-08-03 (v3.2.0) | `ecnu-tts` updated to Fun-CosyVoice3-0.5B; 16 voice types added; DeepSeek-V4-Flash-0731 Day0 deployment |
 | 2026-08-01 | `ecnu-max` updated to DeepSeek-V4-Flash-0731 |
 | 2026-04-24 | `ecnu-max` announced upgrade to DeepSeek-V4-Flash; vision support removed |
