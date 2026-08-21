@@ -74,9 +74,11 @@ API details can change. Treat this skill as a working summary and verify
 production-critical details against the official ECNU developer docs:
 
 - https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
 - https://developer.ecnu.edu.cn/vitepress/llm/authorization.html
 - https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - https://developer.ecnu.edu.cn/vitepress/llm/error.html
+- https://developer.ecnu.edu.cn/vitepress/llm/release.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/models.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/completions.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html

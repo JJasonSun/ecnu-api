@@ -13,6 +13,7 @@
 - [Fixed-Cost Capabilities](#fixed-cost-capabilities)
 - [Official Token Equivalents](#official-token-equivalents)
 - [Errors](#errors)
+- [Recent Changes](#recent-changes)
 - [Official Sources](#official-sources)
 
 ## Source Precedence
@@ -38,8 +39,8 @@ should use `ecnu-plus`.
 
 | Model | Underlying model | Published context | Thinking | Tools | Vision | Positioning |
 |---|---|---|---|---|---|---|
-| `ecnu-max` | DeepSeek-V4-Flash | 1M | Supported, default off | Yes | No | Flagship for complex text and code tasks |
-| `ecnu-plus` | Qwen3.6-27B | 256K | Supported, default off | Yes | Yes | General-purpose balance of quality, cost, and latency |
+| `ecnu-max` | [DeepSeek-V4-Flash-0731](https://modelscope.cn/models/deepseek-ai/DeepSeek-V4-Flash-0731) | 1M | Supported, default off | Yes | No | Flagship for complex text and code tasks |
+| `ecnu-plus` | [Qwen3.6-27B](https://modelscope.cn/models/Qwen/Qwen3.6-27B) | 256K | Supported, default off | Yes | Yes | General-purpose balance of quality, cost, and latency |
 
 The model table labels the context only as `1M` and `256K`; it does not specify
 tokens or characters. Preserve those figures without adding a unit. The
@@ -47,7 +48,7 @@ Anthropic compatibility page separately calls `ecnu-max[1m]` a 1M-character
 context signal for Anthropic tools.
 
 Use `ecnu-plus` for all new image-understanding integrations. `ecnu-max` no
-longer supports vision after its DeepSeek-V4-Flash upgrade.
+longer supports vision after its DeepSeek-V4-Flash-0731 upgrade.
 
 ## Compatibility Aliases
 
@@ -81,10 +82,10 @@ context capability. The compatibility layer strips the suffix before routing.
 
 | Model | Underlying model | Request contract | Output or capability |
 |---|---|---|---|
-| `ecnu-embedding-small` | bge-m3 | `input` is one string or a string array; published limit 8192 characters with batch scope unspecified | 1024-float embeddings |
-| `ecnu-rerank` | bge-reranker-v2-m3 | `documents` is `string[]`; each document at most 8192 characters | Ranked indices and relevance scores |
-| `ecnu-image` | Z-Image-Turbo | Prompt at most 1024 characters; prompts over 500 may be compressed | Image URL or base64 |
-| `ecnu-tts` | CosyVoice2-0.5B | Input at most 4096 characters | Binary audio |
+| `ecnu-embedding-small` | [bge-m3](https://modelscope.cn/models/BAAI/bge-m3) | `input` is one string or a string array; published limit 8192 characters with batch scope unspecified | 1024-float embeddings |
+| `ecnu-rerank` | [bge-reranker-v2-m3](https://modelscope.cn/models/BAAI/bge-reranker-v2-m3) | `documents` is `string[]`; each document at most 8192 characters | Ranked indices and relevance scores |
+| `ecnu-image` | [Z-Image-Turbo](https://modelscope.cn/models/Tongyi-MAI/Z-Image-Turbo) | Prompt at most 1024 characters; prompts over 500 may be compressed | Image URL or base64 |
+| `ecnu-tts` | [Fun-CosyVoice3-0.5B](https://modelscope.cn/models/FunAudioLLM/Fun-CosyVoice3-0.5B-2512) | Input at most 4096 characters | Binary audio |
 
 The model page calls embedding and rerank context `8K`, while their endpoint
 pages express limits in characters. Use the endpoint wording for request
@@ -92,10 +93,53 @@ validation; do not convert 8192 characters to 8192 tokens.
 
 ### TTS voices
 
-| Voice | Description |
-|---|---|
-| `xiayu` | Balanced male voice; default |
-| `liwa` | Balanced female voice |
+`ecnu-tts` supports 16 voice types after the Fun-CosyVoice3-0.5B upgrade on
+2026-08-03. The endpoint page documents all of them:
+
+**Campus (default)**
+
+| Voice ID | Name | Description | Use case |
+|---|---|---|---|
+| `xiayu` | 夏雨 | Male, balanced (default) | General |
+| `liwa` | 丽娃 | Female, balanced | General |
+
+**Male**
+
+| Voice ID | Name | Description | Use case |
+|---|---|---|---|
+| `male_warm` | 温润男声 | Gentle, restrained | Emotional narration, audiobooks |
+| `male_steady` | 稳重学长 | Young, steady, narrative | Lectures, campus promos |
+| `male_news` | 男声·新闻 | Standard broadcast | News, announcements |
+| `male_philosophy` | 男声·哲理 | Slower, reflective | Commentary, essay reading |
+| `yunze` | 云泽大叔 | Middle-aged, deep | Documentary, science narration |
+
+**Female**
+
+| Voice ID | Name | Description | Use case |
+|---|---|---|---|
+| `female_sweet` | 甜美女声 | Bright, sweet, friendly | Customer service, guides |
+| `female_literary` | 女声·文艺 | Gentle, literary | Prose reading, brand copy |
+| `female_news` | 女声·新闻 | Standard broadcast, brisk | News, announcements |
+
+**Dialect**
+
+| Voice ID | Name | Description | Use case |
+|---|---|---|---|
+| `sichuan` | 四川话 | Sichuan dialect | Dialect content |
+| `tianjin` | 天津话 | Tianjin dialect | Dialect content |
+| `shaanxi` | 陕西话 | Shaanxi dialect | Dialect content |
+
+**Multi-language and character**
+
+| Voice ID | Name | Description | Use case |
+|---|---|---|---|
+| `japanese` | 日语 | Japanese voice | Japanese content |
+| `lindaiyu` | 林黛玉 | Classical drama character | Role voice, fun content |
+| `labixiaoxin` | 蜡笔小新 | Anime character | Role voice, fun content |
+
+Dialect and character voices are trained on specific corpora; long written
+passages may produce unstable accent or tone. Test with short text before batch
+use.
 
 Supported audio formats: `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`.
 
@@ -103,11 +147,14 @@ Supported audio formats: `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`.
 
 ECNU states that listed models are deployed on campus and requests normally
 remain on campus servers. During upgrades, failures, or heavy load, ECNU may
-temporarily use cloud models to preserve continuity.
+temporarily use cloud models to preserve continuity. The dedicated security
+page confirms local deployment covers all dialog, embedding/rerank, image, and
+TTS models.
 
 ChatECNU, the Agent platform, and other campus-specific AI applications use
 separate service clusters. Their behavior or availability is therefore not a
-direct measurement of a personal API token's endpoint.
+direct measurement of a personal API token's endpoint. Businesses with strict
+stability requirements are invited to contact ECNU separately.
 
 Check current availability at https://chat.ecnu.edu.cn/status. Avoid parallel
 API calls; short bursts can still trigger service protection even though the
@@ -129,6 +176,66 @@ or:
 
 With the OpenAI Python SDK, pass the object through `extra_body`. A response may
 include `reasoning_content`; callers must tolerate its absence.
+
+### Reasoning Effort
+
+`ecnu-max` additionally supports `reasoning_effort` to control thinking
+intensity. The parameter accepts `low`, `high`, or `max`. It only takes effect
+when thinking is enabled and only applies to `ecnu-max`; `ecnu-plus` ignores
+it. If thinking is disabled, `reasoning_effort` has no effect.
+
+```json
+{
+  "model": "ecnu-max",
+  "thinking": {"type": "enabled"},
+  "reasoning_effort": "high",
+  "messages": [{"role": "user", "content": "Analyze this problem."}]
+}
+```
+
+Higher intensity produces more thorough reasoning but increases latency and
+token consumption. When thinking is enabled, `temperature` and `top_p` may not
+take effect or may be restricted; prefer defaults.
+
+### Multi-turn Splicing
+
+In multi-turn conversations under thinking mode:
+
+- If the assistant did not call a tool, its `reasoning_content` can be omitted
+  from subsequent context.
+- If the assistant called a tool, its `reasoning_content` must be included in
+  all subsequent turns; some models return `400` if it is missing.
+
+### Anthropic-Compatible Thinking Effort
+
+The Anthropic-compatible API uses `output_config.effort` instead of
+`reasoning_effort`. The proxy maps Anthropic levels to `ecnu-max` tiers:
+
+| Client input (`output_config.effort`) | `ecnu-max` actual tier |
+|---|---|
+| `minimal` | `low` |
+| `low` | `low` |
+| `medium` | `high` |
+| `high` | `high` |
+| `xhigh` | `high` |
+| `max` | `max` |
+| `none` | Thinking disabled |
+
+Passing `output_config.effort: "none"` disables thinking. When the parameter is
+omitted, the server default applies.
+
+### Responses-API Thinking Effort
+
+The Responses-compatible API supports `reasoning.effort` for `ecnu-max`.
+Passing `reasoning.effort: "none"` disables thinking; when omitted, the server
+default applies. The proxy applies the same tier mapping as the Anthropic
+compatible API.
+
+### Compatibility Layer Image Handling
+
+When `ecnu-max` is called through the Anthropic or Responses compatibility
+layer, the service automatically removes image content from the request to
+avoid unsupported-vision errors. `ecnu-plus` retains image input normally.
 
 ## Shared Credits Quotas
 
@@ -244,11 +351,26 @@ For `422`, report the `loc`, `type`, and `msg` rather than reducing every error
 to a generic invalid request. For `429`, stop concurrent retries and inspect
 credits before applying backoff.
 
+## Recent Changes
+
+| Date | Change |
+|---|---|
+| 2026-08-10 (v3.2.1) | `ecnu-max` supports `reasoning_effort`; Anthropic API supports `output_config.effort`; Responses API supports `reasoning.effort`; compatibility layer auto-removes images from `ecnu-max` requests; bug fixes for streaming quota errors and empty-stream handling |
+| 2026-08-09 | Docs: model page adds default-parameter guidance (`temperature`/`top_p` per underlying model docs) and a local deployment & data security section; security and developer-agreement (tos) pages published, including the 90-day default token validity |
+| 2026-08-03 (v3.2.0) | `ecnu-tts` updated to Fun-CosyVoice3-0.5B; 16 voice types added; DeepSeek-V4-Flash-0731 Day0 deployment |
+| 2026-08-01 | `ecnu-max` updated to DeepSeek-V4-Flash-0731 |
+| 2026-04-24 | `ecnu-max` announced upgrade to DeepSeek-V4-Flash; vision support removed |
+| 2026-04-03 | Dialog models unified to `ecnu-max` and `ecnu-plus`; `thinking` parameter introduced |
+| 2025-03-20 | Native `search_mode` web search removed |
+
 ## Official Sources
 
 - Models and aliases: https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- Thinking mode: https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
 - Quotas and prices: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - Anthropic compatibility: https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html
 - Release notes: https://developer.ecnu.edu.cn/vitepress/llm/release.html
+- Local deployment and data security: https://developer.ecnu.edu.cn/vitepress/llm/security.html
+- Developer agreement (token rules): https://developer.ecnu.edu.cn/vitepress/llm/tos.html
 - Service status: https://chat.ecnu.edu.cn/status

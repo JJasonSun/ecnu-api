@@ -110,6 +110,35 @@ if reasoning:
 print("Answer:", message.content)
 ```
 
+### Reasoning Effort
+
+`ecnu-max` supports `reasoning_effort` to control thinking intensity. It
+accepts `low`, `high`, or `max`, and only takes effect when thinking is
+enabled. `ecnu-plus` ignores this parameter:
+
+```python
+completion = client.chat.completions.create(
+    model="ecnu-max",
+    messages=[{"role": "user", "content": "Analyze this problem."}],
+    extra_body={
+        "thinking": {"type": "enabled"},
+        "reasoning_effort": "high",
+    },
+)
+
+message = completion.choices[0].message
+reasoning = getattr(message, "reasoning_content", None)
+if reasoning:
+    print("Reasoning:", reasoning)
+print("Answer:", message.content)
+```
+
+Higher intensity produces more thorough reasoning but increases latency and
+token consumption. When thinking is enabled, `temperature` and `top_p` may not
+take effect or may be restricted; prefer defaults.
+
+### Streaming
+
 Stream text deltas:
 
 ```python
@@ -398,13 +427,16 @@ response = client.audio.speech.create(
 response.stream_to_file("output.mp3")
 ```
 
-Input is limited to 4096 characters. Voice is `xiayu` or `liwa`; speed is 0.25
-through 4.0. Multiple texts require separate sequential API calls:
+Input is limited to 4096 characters. The model page states that the underlying
+model was updated to Fun-CosyVoice3-0.5B with 16 voice types; see the API
+reference for the full voice list. Speed is 0.25 through 4.0. Multiple texts
+require separate sequential API calls:
 
 ```python
 jobs = [
     ("第一段文本。", "xiayu"),
-    ("第二段文本。", "liwa"),
+    ("第二段文本。", "female_sweet"),
+    ("第三段文本。", "male_news"),
 ]
 
 for index, (text, voice) in enumerate(jobs, start=1):
@@ -517,6 +549,18 @@ message = anthropic_client.messages.create(
 The suffix is specific to the Anthropic compatibility layer. `opus` names map
 to `ecnu-max`; `sonnet`, `haiku`, and other unrecognized names map to
 `ecnu-plus`.
+
+The Anthropic-compatible API also supports `output_config.effort` to control
+thinking intensity for `ecnu-max`. The proxy maps `minimal`/`low` to `low`,
+`medium`/`high`/`xhigh` to `high`, `max` to `max`, and `none` to thinking
+disabled.
+
+The Responses-compatible API supports `reasoning.effort` with the same tier
+mapping. Passing `reasoning.effort: "none"` disables thinking.
+
+When `ecnu-max` is called through either compatibility layer, the service
+automatically strips image content from the request. Use `ecnu-plus` for
+vision tasks.
 
 ## Model Discovery
 

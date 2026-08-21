@@ -38,7 +38,8 @@ Content-Type: application/json
 ```
 
 Obtain a key in ChatECNU under the avatar menu, "我的令牌". Never place a real
-key in source, examples, logs, screenshots, or error reports.
+key in source, examples, logs, screenshots, or error reports. Tokens are
+personal, default to a 90-day validity, and must be renewed before expiry.
 
 ## Endpoint Map
 
@@ -63,7 +64,7 @@ shown.
 
 | Model | Underlying model | Published context | Thinking | Tools | Vision |
 |---|---|---|---|---|---|
-| `ecnu-max` | DeepSeek-V4-Flash | 1M | Supported, default off | Yes | No |
+| `ecnu-max` | DeepSeek-V4-Flash-0731 | 1M | Supported, default off | Yes | No |
 | `ecnu-plus` | Qwen3.6-27B | 256K | Supported, default off | Yes | Yes |
 
 The model page does not label the context figures as tokens or characters. Do
@@ -120,6 +121,16 @@ integrations and retain `ecnu-vl` only for compatibility.
   and uncached input; cached input currently costs one fifth of uncached input.
 - Enable dialog thinking with `{"thinking": {"type": "enabled"}}`. With the
   OpenAI Python SDK, pass this ECNU extension through `extra_body`.
+- `ecnu-max` supports `reasoning_effort` (`low` / `high` / `max`) to control
+  thinking intensity when thinking is enabled. `ecnu-plus` ignores this
+  parameter. The Anthropic-compatible API uses `output_config.effort` and the
+  Responses API uses `reasoning.effort`, both with a different set of levels
+  mapped to `ecnu-max` tiers.
+- When thinking is enabled, `temperature` and `top_p` may not take effect or
+  may be restricted; prefer defaults.
+- Outside thinking mode, the model page advises tuning `temperature`, `top_p`,
+  and other sampling parameters per the underlying models' official
+  documentation; it publishes no platform-specific defaults.
 - Native `search_mode` web search was removed. Use tool calling or an external
   search implementation.
 - Treat `422` as a request-shape/type failure and inspect `detail`; treat `429`
@@ -144,9 +155,12 @@ request. Do not turn an observation into a permanent platform guarantee.
 ## Official Documentation
 
 - Models: https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- Thinking: https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
 - API index: https://developer.ecnu.edu.cn/vitepress/llm/api/models.html
 - Responses: https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html
 - Quotas: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - Release notes: https://developer.ecnu.edu.cn/vitepress/llm/release.html
+- Local deployment and data security: https://developer.ecnu.edu.cn/vitepress/llm/security.html
+- Developer agreement (token rules): https://developer.ecnu.edu.cn/vitepress/llm/tos.html
 - Service status: https://chat.ecnu.edu.cn/status

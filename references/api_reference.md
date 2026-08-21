@@ -61,6 +61,10 @@ Get the key from ChatECNU under the avatar menu, "我的令牌". A missing or
 invalid token returns `401`. Some third-party applications also require an IP
 allowlist; a mismatch returns `403`.
 
+Per the developer agreement, tokens are personal (do not lend them to others or
+expose them in browser or client code), default to a 90-day validity, and must
+be renewed before expiry.
+
 ## Chat Completions
 
 ```http
@@ -76,30 +80,43 @@ POST https://chat.ecnu.edu.cn/open/api/v1/chat/completions
 | `messages[].role` | string | Yes | `system`, `user`, or `assistant` |
 | `messages[].content` | string or array | Yes | String for text; structured parts for vision |
 | `stream` | boolean | No | Return Server-Sent Events when true |
-| `temperature` | number | No | 0 through 1; model-specific default |
-| `top_p` | number | No | 0 through 1; model-specific default |
+| `temperature` | number | No | 0 through 1; model-specific default; may be restricted when thinking is enabled |
+| `top_p` | number | No | 0 through 1; model-specific default; may be restricted when thinking is enabled |
 | `tools` | array | No | OpenAI-compatible function definitions |
 | `tools[].type` | string | With tools | Fixed to `function` |
 | `tools[].function.name` | string | With tools | Function name |
 | `tools[].function.description` | string | With tools | Function description |
 | `tools[].function.parameters` | object | With tools | JSON Schema-like parameters |
 | `thinking` | object | No | ECNU extension: `{"type":"enabled"}` or `{"type":"disabled"}` |
+| `reasoning_effort` | string | No | ECNU extension: `low`, `high`, or `max`; only `ecnu-max` with thinking enabled; `ecnu-plus` ignores it |
 | `response_format` | object | No | Structured output; see below |
 | `max_tokens` | integer | For bounded output | Used by ECNU's structured-output examples; publish no universal maximum |
 
 `search_mode` remains visible in older request tables but native web search was
 removed on 2025-03-20. Do not use it for new integrations.
 
-When using the OpenAI Python SDK, pass `thinking` through `extra_body` because
-it is an ECNU extension rather than a standard SDK keyword:
+When using the OpenAI Python SDK, pass `thinking` and `reasoning_effort` through
+`extra_body` because they are ECNU extensions rather than standard SDK keywords:
 
 ```python
 client.chat.completions.create(
     model="ecnu-max",
     messages=[{"role": "user", "content": "Analyze this."}],
-    extra_body={"thinking": {"type": "enabled"}},
+    extra_body={
+        "thinking": {"type": "enabled"},
+        "reasoning_effort": "high",
+    },
 )
 ```
+
+`reasoning_effort` only takes effect when `thinking` is set to `enabled` and
+only applies to `ecnu-max`. When thinking is enabled, `temperature` and `top_p`
+may not take effect or may be restricted; prefer defaults.
+
+In multi-turn conversations under thinking mode, if the assistant called a
+tool, its `reasoning_content` must be included in all subsequent turns; some
+models return `400` if it is missing. If no tool was called, `reasoning_content`
+can be omitted from subsequent context.
 
 ### Response fields
 
@@ -144,6 +161,13 @@ print(response.output_text)
 Do not assume every OpenAI Responses tool or event type is implemented until it
 is documented or verified. Requests use the same credits pool as other dialog
 calls.
+
+### Responses-API thinking effort
+
+The Responses-compatible API supports `reasoning.effort` to control thinking
+intensity for `ecnu-max`. Passing `reasoning.effort: "none"` disables thinking;
+when omitted, the server default applies. The proxy applies the same tier
+mapping as the Anthropic-compatible API.
 
 ## Vision
 
@@ -318,14 +342,80 @@ POST https://chat.ecnu.edu.cn/open/api/v1/audio/speech
 |---|---|---|---|
 | `model` | string | Yes | `ecnu-tts` |
 | `input` | string | Yes | At most 4096 characters |
-| `voice` | string | No | `xiayu` or `liwa`; default `xiayu` |
+| `voice` | string | No | Voice ID from the voice list below; default `xiayu` |
 | `response_format` | string | No | `mp3`, `opus`, `aac`, `flac`, `wav`, `pcm`; default `mp3` |
 | `speed` | number | No | 0.25 through 4.0; default 1.0 |
 
 The successful response body is binary audio with a format-specific MIME type.
-`xiayu` is described as a balanced male voice; `liwa` as a balanced female
-voice. "Batch TTS" in the official examples is a sequential client loop, not a
-batch request shape.
+The response includes a `Content-Disposition` header with a suggested filename.
+When `response_format` is `pcm`, the response also includes `Content-Rate`
+(sample rate), `Content-Channels` (fixed to 1), and `Content-Bits` (fixed to 16)
+headers for direct playback.
+
+### TTS voices
+
+`ecnu-tts` supports 16 voice types. Dialect and character voices are trained on
+specific corpora; test with short text before batch use.
+
+**Campus (default)**
+
+| Voice ID | Name | Description |
+|---|---|---|
+| `xiayu` | 夏雨 | Male, balanced (default) |
+| `liwa` | 丽娃 | Female, balanced |
+
+**Male**
+
+| Voice ID | Name | Description |
+|---|---|---|
+| `male_warm` | 温润男声 | Gentle, restrained |
+| `male_steady` | 稳重学长 | Young, steady, narrative |
+| `male_news` | 男声·新闻 | Standard broadcast |
+| `male_philosophy` | 男声·哲理 | Slower, reflective |
+| `yunze` | 云泽大叔 | Middle-aged, deep |
+
+**Female**
+
+| Voice ID | Name | Description |
+|---|---|---|
+| `female_sweet` | 甜美女声 | Bright, sweet, friendly |
+| `female_literary` | 女声·文艺 | Gentle, literary |
+| `female_news` | 女声·新闻 | Standard broadcast, brisk |
+
+**Dialect**
+
+| Voice ID | Name | Description |
+|---|---|---|
+| `sichuan` | 四川话 | Sichuan dialect |
+| `tianjin` | 天津话 | Tianjin dialect |
+| `shaanxi` | 陕西话 | Shaanxi dialect |
+
+**Multi-language and character**
+
+| Voice ID | Name | Description |
+|---|---|---|
+| `japanese` | 日语 | Japanese voice |
+| `lindaiyu` | 林黛玉 | Classical drama character |
+| `labixiaoxin` | 蜡笔小新 | Anime character |
+
+### TTS errors
+
+Invalid parameters return `400` with a JSON body containing `error`,
+`request_id`, and `details`:
+
+```json
+{
+  "error": "voice 'xiaoming' not found",
+  "request_id": "3f9a2b1c",
+  "details": {
+    "available_voices": ["xiayu", "liwa", "male_warm"]
+  }
+}
+```
+
+Common errors: `input is required`, `speed must be between 0.25 and 4.0`,
+`response_format 'xxx' not supported`, `voice 'xxx' not found`. "Batch TTS" in
+the official examples is a sequential client loop, not a batch request shape.
 
 ## Model List
 
@@ -362,6 +452,33 @@ For Anthropic tools that inspect the model name to determine context size, pass
 `ecnu-max[1m]`. The compatibility layer removes `[1m]` before routing and tells
 the tool that the model supports the documented 1M-character context. Do not
 generalize this suffix to the OpenAI-compatible APIs.
+
+### Thinking effort
+
+The Anthropic-compatible API supports `output_config.effort` to specify
+thinking intensity. The proxy maps it to `ecnu-max` tiers:
+
+| Client input (`output_config.effort`) | `ecnu-max` actual tier |
+|---|---|
+| `minimal` | `low` |
+| `low` | `low` |
+| `medium` | `high` |
+| `high` | `high` |
+| `xhigh` | `high` |
+| `max` | `max` |
+| `none` | Thinking disabled |
+
+Thinking effort only applies to `ecnu-max`; `ecnu-plus` ignores it. Passing
+`output_config.effort: "none"` disables thinking. When omitted, the server
+default applies.
+
+### Image handling in compatibility layers
+
+When `ecnu-max` is called through the Anthropic or Responses compatibility
+layer, the service automatically removes image content from the request to
+avoid unsupported-vision errors. `ecnu-plus` retains image input normally. Do
+not rely on this stripping for request validation; use `ecnu-plus` for all
+image-understanding requests.
 
 ## Structured Output
 
@@ -429,6 +546,8 @@ an OpenAI default, a model-card limit, a UI limit, or a value observed once.
 ## Official Sources
 
 - Authorization: https://developer.ecnu.edu.cn/vitepress/llm/authorization.html
+- Models: https://developer.ecnu.edu.cn/vitepress/llm/model.html
+- Thinking: https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
 - Chat Completions: https://developer.ecnu.edu.cn/vitepress/llm/api/completions.html
 - Responses: https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html
 - Vision: https://developer.ecnu.edu.cn/vitepress/llm/api/vision.html
@@ -440,3 +559,5 @@ an OpenAI default, a model-card limit, a UI limit, or a value observed once.
 - Anthropic compatibility: https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html
 - Structured output: https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html
 - Embed iFrame: https://developer.ecnu.edu.cn/vitepress/llm/api/embediframe.html
+- Local deployment and data security: https://developer.ecnu.edu.cn/vitepress/llm/security.html
+- Developer agreement (token rules): https://developer.ecnu.edu.cn/vitepress/llm/tos.html
