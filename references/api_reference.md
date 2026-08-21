@@ -19,6 +19,7 @@ ECNU; use only fields documented here or verified with the current service.
 - [Structured Output](#structured-output)
 - [Embed iFrame](#embed-iframe)
 - [Errors and Undocumented Limits](#errors-and-undocumented-limits)
+- [Live Verification Notes](#live-verification-notes)
 - [Official Sources](#official-sources)
 
 ## Protocol Roots and Authentication
@@ -546,6 +547,36 @@ error response is JSON; retain the HTTP status and a bounded body sample.
 
 When the docs publish no limit, write "not documented". Do not replace it with
 an OpenAI default, a model-card limit, a UI limit, or a value observed once.
+
+## Live Verification Notes
+
+Observed on 2026-08-21 with a personal token against the live service. These
+are point-in-time observations, not documented contracts; re-verify before
+relying on them.
+
+- `GET /models` does not return the documented `401` for a bad token. An
+  invalid bearer token returns `200` with `{"object":"list","data":[]}`; a
+  missing Authorization header returns `500` with an HTML error page inside
+  the `error` field. Do not treat an empty model list as an auth check.
+- The live `GET /models` list includes `ecnu-image-pro`, absent from the model
+  page. A probe call to `/images/generations` with that model returned
+  `500 Internal Server Error` as plain text, so it is listed but not
+  verifiably usable yet.
+- TTS with an invalid `voice` returned `500 Internal Server Error` as plain
+  text, not the documented `400` JSON body with `details.available_voices`.
+- TTS `pcm` responses set `Content-Type: audio/pcm` but did not include the
+  documented `Content-Rate`, `Content-Channels`, and `Content-Bits` headers.
+- Anthropic messages with model `ecnu-max[1m]` returned `401` with
+  `{"detail":"Error code: 401 - {'detail': '获取第三方元数据失败'}"}`, while
+  plain `ecnu-max` requests work. The documented suffix handling may be broken
+  or depend on unlisted account metadata.
+
+Everything else verified as documented on the same date: chat completions,
+thinking with `reasoning_effort` (including `reasoning_content` omission in
+non-tool multi-turn), tool calling, vision content parts, structured output,
+Responses API including `reasoning.effort`, embeddings (scalar and array,
+1024 dims), rerank, Anthropic model mapping and `output_config.effort`, image
+generation, TTS default and new voices, and the `422` validation shape.
 
 ## Official Sources
 
