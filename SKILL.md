@@ -141,8 +141,9 @@ section; use `ecnu-plus` for new image-understanding integrations and retain
 ## Read the Relevant Reference
 
 - Read [references/api_reference.md](references/api_reference.md) for exact
-  request fields, limits, response shapes, protocol roots, and documented
-  ambiguities.
+  request fields, limits, response shapes, protocol roots, documented
+  ambiguities, and the Live Verification Notes on observed docs-vs-service
+  deviations.
 - Read [references/models.md](references/models.md) for model aliases,
   deployment notes, current cached/uncached credit formulas, quotas, and errors.
 - Read [references/examples.md](references/examples.md) for minimal Python and

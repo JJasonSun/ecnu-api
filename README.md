@@ -47,6 +47,8 @@ Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API.
 ## Files
 
 - `SKILL.md`: skill trigger metadata and quick navigation.
+- `AGENTS.md`: repo maintenance guide for AI agents (deploy flow,
+  conventions, verification workflow).
 - `references/api_reference.md`: endpoint summaries and request/response notes.
 - `references/models.md`: models, aliases, credits, quotas, and errors.
 - `references/examples.md`: short Python SDK and direct HTTP examples.
