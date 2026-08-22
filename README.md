@@ -1,79 +1,134 @@
 # ECNU API Agent Skill
 
-Unofficial community [Agent Skill](https://agentskills.io/) for working with the
-ECNU / ChatECNU LLM Open Platform API.
+Unofficial community [Agent Skill](https://agentskills.io/) for implementing,
+reviewing, testing, and troubleshooting integrations with the ECNU / ChatECNU
+LLM Open Platform API.
 
-This skill helps compatible AI agents answer questions and write integrations
-for:
+The skill covers:
 
-- OpenAI-compatible chat completions
-- OpenAI-compatible Responses API
-- Vision / multimodal chat
-- Embeddings and rerank
-- Image generation
-- Text-to-speech
-- Structured output
+- OpenAI-compatible Chat Completions and Responses APIs
+- vision and multimodal messages
+- embeddings and rerank
+- image generation and text-to-speech
+- structured output
 - Anthropic-compatible API usage
-- Models, authentication, quotas, and error handling
+- model selection, authentication, quotas, errors, and known service deviations
 
 ## Install
-
-Install with the open Skills CLI:
 
 ```bash
 npx skills add JJasonSun/ecnu-api
 ```
 
-See the skill on [skills.sh](https://skills.sh/jjasonsun/ecnu-api/ecnu-api).
+Or copy this repository into the skills directory used by an Agent
+Skills-compatible client. Keep the installed directory name as `ecnu-api` so it
+matches the `name` in `SKILL.md`.
 
-Alternatively, clone or copy this repository into the skills directory used by
-your Agent Skills-compatible client. Keep the installed directory name as
-`ecnu-api`, because the Agent Skills specification requires it to match the
-`name` in `SKILL.md`.
-
-The exact skills directory depends on the client. For example:
+Example invocation:
 
 ```text
-<client-skills-directory>/ecnu-api/SKILL.md
+Use $ecnu-api to review this ECNU API integration.
 ```
 
-Once installed, ask the agent to work with the ECNU API. Clients that support
-explicit skill invocation may also accept prompts such as:
+## Repository layout
 
 ```text
-Use $ecnu-api to help me integrate with the ECNU LLM Open Platform API.
+ecnu-api/
+├── SKILL.md
+├── AGENTS.md
+├── references/
+│   ├── api_reference.md
+│   ├── models.md
+│   ├── examples.md
+│   ├── workflows.md
+│   └── known_deviations.md
+├── scripts/
+│   ├── smoke_test.py
+│   └── validate_skill.py
+├── tests/
+│   └── test_smoke_test.py
+└── .github/workflows/validate.yml
 ```
 
-## Files
+`SKILL.md` contains the core workflow and tells an agent when to load each
+focused reference. Live observations are isolated from documented contracts in
+`references/known_deviations.md`.
 
-- `SKILL.md`: skill trigger metadata and quick navigation.
-- `AGENTS.md`: repo maintenance guide for AI agents (deploy flow,
-  conventions, verification workflow).
-- `references/api_reference.md`: endpoint summaries and request/response notes.
-- `references/models.md`: models, aliases, credits, quotas, and errors.
-- `references/examples.md`: short Python SDK and direct HTTP examples.
+## Configure a key safely
 
-## Validate
+Store the key in an environment variable. Do not put it in source files, shell
+scripts, screenshots, committed reports, or chat prompts.
 
-Run the official
-[`skills-ref`](https://github.com/agentskills/agentskills/tree/main/skills-ref)
-reference validator with `uv`:
-
-```bash
-uvx --from skills-ref agentskills validate /path/to/ecnu-api
-```
-
-On Windows PowerShell, force UTF-8 when the system locale is not UTF-8:
+PowerShell:
 
 ```powershell
-$env:PYTHONUTF8 = "1"
-uvx --from skills-ref agentskills validate C:\path\to\ecnu-api
+$env:ECNU_API_KEY = "your-api-key"
 ```
 
-## Official Documentation
+macOS or Linux:
 
-API details can change. Treat this skill as a working summary and verify
-production-critical details against the official ECNU developer docs:
+```bash
+export ECNU_API_KEY="your-api-key"
+```
+
+A key pasted into a chat or public location should be revoked or rotated after
+testing.
+
+## Reproducible smoke tests
+
+The default profile performs model-list checks and does not send chat,
+embedding, Anthropic, image, or TTS POST requests:
+
+```bash
+python scripts/smoke_test.py
+```
+
+Low-cost POST probes are explicit:
+
+```bash
+python scripts/smoke_test.py --low-cost --anthropic \
+  --account-type personal-token \
+  --output smoke-results.json
+```
+
+The report contains statuses and structural summaries. It does not print the
+API key or successful model content. Image generation is intentionally absent
+from the automated smoke test because it is comparatively expensive and a
+retry after an ambiguous failure could duplicate charges.
+
+## Validate the skill
+
+Run deterministic repository checks and unit tests:
+
+```bash
+python scripts/validate_skill.py
+python -m unittest discover -s tests -v
+```
+
+Run the Agent Skills reference validator separately:
+
+```bash
+uvx --from skills-ref agentskills validate .
+```
+
+The reference validator checks format and naming conventions; it does not
+verify that ECNU endpoints are currently available or that every documented
+contract matches live behavior.
+
+## Maintenance principles
+
+- Official ECNU documentation is the authority for documented contracts.
+- Runtime observations must include a date and must remain labeled as
+  observations.
+- Do not infer unsupported OpenAI or Anthropic fields.
+- Keep examples minimal and secrets environment-based.
+- Do not add local absolute paths or machine-specific deployment instructions.
+- Run repository validation before opening a pull request.
+
+## Official documentation
+
+API details can change. Verify production-critical behavior against the current
+ECNU developer documentation:
 
 - https://developer.ecnu.edu.cn/vitepress/llm/model.html
 - https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
@@ -84,17 +139,16 @@ production-critical details against the official ECNU developer docs:
 - https://developer.ecnu.edu.cn/vitepress/llm/api/models.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/completions.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html
-- https://developer.ecnu.edu.cn/vitepress/llm/api/vision.html
-- https://developer.ecnu.edu.cn/vitepress/llm/api/imagegenerate.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/embedding.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/rerank.html
+- https://developer.ecnu.edu.cn/vitepress/llm/api/imagegenerate.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/audio.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html
-- https://developer.ecnu.edu.cn/vitepress/llm/api/embediframe.html
+- https://developer.ecnu.edu.cn/vitepress/llm/tos.html
 
 ## Disclaimer
 
 This is an unofficial community skill. It is not endorsed by or affiliated with
-East China Normal University. Do not commit API keys, personal tokens, internal
-whitelist details, or screenshots containing credentials.
+East China Normal University. Never commit API keys, personal tokens, internal
+allowlist details, private prompts, or unsanitized live-test output.
