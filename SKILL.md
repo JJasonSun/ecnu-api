@@ -15,7 +15,7 @@ description: >
 Use this skill to turn ECNU API documentation into a safe, verifiable
 integration. The current official ECNU developer documentation is the
 authority for documented contracts. Keep documented facts, live observations,
-and application policy separate.
+application policy, and unverified claims separate.
 
 ## Core rules
 
@@ -131,55 +131,89 @@ names as compatibility aliases.
 
 Before a real request:
 
-- use an environment variable such as `ECNU_API_KEY`;
+- recheck the current official quota and pricing page, then calculate a
+  conservative planned cost from those documented prices;
+- use 50 credits as the default ceiling and do not run a larger plan without
+  separate user authorization;
+- use only `ECNU_API_KEY` from the environment; never accept a key through a
+  command-line argument;
 - remove secrets and unnecessary personal or confidential data;
 - confirm the user intended to send the supplied content to ECNU;
-- state when image generation, TTS, or other calls may consume credits;
-- never blindly retry a billable request after an ambiguous timeout.
+- execute requests serially; and
+- never retry a POST after an ambiguous timeout or connection failure.
+
+If the full plan exceeds 50 credits, preserve the core dialog, embedding,
+rerank, compatibility, and error checks; prefer one TTS PCM check; run at most
+one documented image-generation case; and skip expanded voices and
+undocumented model probes.
 
 If a key has already been pasted into a chat or public location, recommend
 revoking or rotating it after testing.
 
 ### 7. Execute and verify
 
-For reproducible checks, run:
+Use the smallest profile that answers the question. Sanitized reports belong
+under the ignored `.live-artifacts/` directory:
 
 ```bash
-python scripts/smoke_test.py
+python3 scripts/smoke_test.py --profile auth --max-credits 0 --output .live-artifacts/auth.json
+python3 scripts/smoke_test.py --profile core --max-credits 50 --output .live-artifacts/core.json
+python3 scripts/smoke_test.py --profile compatibility --max-credits 50 --output .live-artifacts/compatibility.json
+python3 scripts/smoke_test.py --profile billable --max-credits 50 --output .live-artifacts/billable.json
+python3 scripts/smoke_test.py --profile all --max-credits 50 --output .live-artifacts/all.json
 ```
 
-This default profile performs model-list checks only. Low-cost POST probes are
-opt-in:
-
-```bash
-python scripts/smoke_test.py --low-cost --anthropic
-```
-
-The script reads `ECNU_API_KEY`, redacts key-shaped strings, and emits a
-structural JSON report rather than model output.
+The default profile is `auth`. The runner reads `ECNU_API_KEY`, executes
+serially with POST retries disabled, reserves estimated credits before each
+request, skips cases that would exceed the ceiling, and emits response
+structure rather than generated content. A credit estimate is not proof of the
+service's actual debit.
 
 ### 8. Report provenance
 
 Label important conclusions as one of:
 
-- **Documented** — supported by the current official ECNU documentation.
-- **Observed** — reproduced against the live service at a stated date.
-- **Unverified** — inferred, historical, or not reproducible in the current
+- **`documented`** — supported by the current official ECNU documentation.
+- **`observed`** — reproduced against the live service at a stated date.
+- **`application-policy`** — a local safety, cost, or reliability constraint;
+  not an ECNU platform guarantee.
+- **`unverified`** — inferred, historical, or not reproducible in the current
   environment.
 
 Do not silently promote an observed deviation into a documented guarantee.
+
+### 9. Finish repository work
+
+When repository files changed, finish with offline, format, and secret checks:
+
+```bash
+python3 scripts/validate_skill.py
+python3 -m unittest discover -s tests -v
+python3 -m compileall scripts tests
+uvx --from skills-ref agentskills validate "$PWD"
+git grep -nE 'sk-[A-Za-z0-9_-]{16,}'
+git grep -nE 'Authorization:[[:space:]]*Bearer[[:space:]]+[^<"$]'
+git diff --check
+```
+
+Review every secret-scan match; no tracked literal credential may remain.
+Variable-based test fixtures may match the coarse Bearer expression. If `uvx`
+is not available, report that validator as not run rather than treating it as
+live API evidence.
 
 ## High-value gotchas
 
 - `GET /models` is runtime discovery, not a reliable authentication test.
 - A model appearing in `/models` does not prove that a capability is usable.
 - Use `ecnu-max[1m]` only when an Anthropic tool requires the suffix to
-  advertise long context. Fall back to plain `ecnu-max` if the suffix returns
-  an authentication or metadata error.
+  advertise long context. Consider plain `ecnu-max` only when the same
+  credential already succeeds with that model, the suffixed request returns
+  the observed suffix-specific `401` metadata error, and the caller accepts
+  the shorter advertised context.
 - TTS errors may not match the documented JSON shape; preserve the HTTP status,
   content type, and a bounded redacted body sample.
-- Do not depend on optional PCM metadata headers without checking them at
-  runtime.
+- Do not assume the documented PCM metadata headers are present; check them at
+  runtime and configure the format explicitly when they are absent.
 - `422` means request validation failed; inspect `detail`.
 - `429` may represent quota exhaustion, rate control, or short-term service
   protection. Stop parallel retries and inspect credits first.

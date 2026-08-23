@@ -7,3 +7,4 @@ __pycache__/
 *.py[cod]
 smoke-results*.json
 smoke-results/
+.live-artifacts/
