@@ -1,160 +1,190 @@
 ---
 name: ecnu-api
 description: >
-  Integrate with the ECNU (East China Normal University) LLM Open Platform.
-  Covers OpenAI-compatible Chat Completions and Responses APIs, multimodal
+  Implement, review, test, or troubleshoot integrations with the ECNU
+  (East China Normal University) LLM Open Platform at chat.ecnu.edu.cn.
+  Use for OpenAI-compatible Chat Completions and Responses APIs, multimodal
   input, embeddings, rerank, image generation, text-to-speech, structured
-  output, model discovery, and the separate Anthropic-compatible API. Use when
-  an AI agent needs to call or troubleshoot chat.ecnu.edu.cn APIs, select ECNU
-  models, validate request types and limits, configure an OpenAI or Anthropic
-  client, or explain authentication, credits, quotas, errors, and compatibility
-  aliases. Triggers include "ECNU API", "ChatECNU", "华东师范大学 API",
-  "ECNU 大模型", "ecnu-max", "ecnu-plus", "ecnu-embedding-small",
-  "ecnu-rerank", "ecnu-image", and "ecnu-tts".
+  output, model discovery, Anthropic-compatible clients, authentication,
+  credits, quotas, and API errors. Do not use for general ECNU information
+  or unrelated DeepSeek and Qwen questions.
 ---
 
 # ECNU LLM Open Platform API
 
-Use the current ECNU developer documentation as the authority. Treat request
-types, units, and URL roots as separate contracts; do not infer unsupported
-OpenAI parameters merely because an endpoint is OpenAI-compatible.
+Use this skill to turn ECNU API documentation into a safe, verifiable
+integration. The current official ECNU developer documentation is the
+authority for documented contracts. Keep documented facts, live observations,
+and application policy separate.
 
-## Choose the Correct Protocol Root
+## Core rules
 
-| Protocol | Base or full URL | Use for |
-|---|---|---|
-| OpenAI-compatible | `https://chat.ecnu.edu.cn/open/api/v1` | Chat Completions, Responses, embeddings, images, TTS, models |
-| Anthropic-compatible | `https://chat.ecnu.edu.cn/open/api/anthropic` | Anthropic SDK and `/v1/messages` |
-| Embed iFrame (experimental) | `https://chat.ecnu.edu.cn/open/api/embed/app` | One-time embedded ChatECNU URL |
+1. Select the protocol root before constructing a request.
+2. Use only fields documented by ECNU or explicitly verified against the
+   current service.
+3. Do not assume that every OpenAI or Anthropic feature is implemented merely
+   because an endpoint is compatible with that protocol.
+4. Keep API keys in environment variables. Never put a real key in source,
+   command history, examples, logs, screenshots, or committed test output.
+5. Treat live observations as point-in-time evidence, not permanent contracts.
+6. Avoid parallel calls. Run batches sequentially unless ECNU documents a safe
+   concurrency policy.
 
-Never append the Anthropic path to the OpenAI base. The full Anthropic messages
-URL is `https://chat.ecnu.edu.cn/open/api/anthropic/v1/messages`.
+## Workflow
 
-Authenticate API calls with:
+### 1. Classify the request
 
-```http
-Authorization: Bearer <your_api_key>
-Content-Type: application/json
+Determine whether the user wants:
+
+- an explanation;
+- implementation or code review;
+- troubleshooting;
+- a live capability check;
+- a cost or quota calculation.
+
+Do not execute a real request when the user only asks for documentation or
+sample code.
+
+### 2. Load only the relevant reference
+
+- Read [references/api_reference.md](references/api_reference.md) for endpoint
+  roots, request fields, limits, and response shapes.
+- Read [references/models.md](references/models.md) for model selection,
+  aliases, thinking modes, credits, quotas, and deployment notes.
+- Read [references/examples.md](references/examples.md) for minimal Python and
+  HTTP examples.
+- Read [references/workflows.md](references/workflows.md) for implementation,
+  review, troubleshooting, retry, privacy, and live-verification procedures.
+- Read [references/known_deviations.md](references/known_deviations.md) when
+  diagnosing behavior that conflicts with the official documentation.
+
+Do not load every reference for a narrow task.
+
+### 3. Select the protocol root
+
+| Protocol | Base or full URL |
+|---|---|
+| OpenAI-compatible | `https://chat.ecnu.edu.cn/open/api/v1` |
+| Anthropic-compatible | `https://chat.ecnu.edu.cn/open/api/anthropic` |
+| Embed iFrame | `https://chat.ecnu.edu.cn/open/api/embed/app` |
+
+The Anthropic messages URL is:
+
+```text
+https://chat.ecnu.edu.cn/open/api/anthropic/v1/messages
 ```
 
-Obtain a key in ChatECNU under the avatar menu, "我的令牌". Never place a real
-key in source, examples, logs, screenshots, or error reports. Tokens are
-personal, default to a 90-day validity, and must be renewed before expiry.
+Never append the Anthropic path to the OpenAI-compatible `/v1` base.
 
-## Endpoint Map
+### 4. Select a model
 
-Paths below are relative to the OpenAI-compatible base unless a full URL is
-shown.
+| Task | Preferred model |
+|---|---|
+| General text, tools, lower latency | `ecnu-plus` |
+| Complex text or code | `ecnu-max` |
+| Image understanding | `ecnu-plus` |
+| Embeddings | `ecnu-embedding-small` |
+| Rerank | `ecnu-rerank` |
+| Image generation | `ecnu-image` |
+| Text-to-speech | `ecnu-tts` |
 
-| Capability | Method and path | Model |
-|---|---|---|
-| Chat Completions | `POST /chat/completions` | `ecnu-max`, `ecnu-plus` |
-| Responses | `POST /responses` | `ecnu-max`, `ecnu-plus` |
-| Vision | `POST /chat/completions` | Prefer `ecnu-plus`; `ecnu-vl` is a legacy alias |
-| Embeddings | `POST /embeddings` | `ecnu-embedding-small` |
-| Rerank | `POST /rerank` | `ecnu-rerank` |
-| Image generation | `POST /images/generations` | `ecnu-image` |
-| Text-to-speech | `POST /audio/speech` | `ecnu-tts` |
-| Model list | `GET /models` | N/A |
-| Structured output | `POST /chat/completions` | `ecnu-plus` and alias `ecnu-turbo` |
-| Anthropic messages | `POST https://chat.ecnu.edu.cn/open/api/anthropic/v1/messages` | `ecnu-max`, `ecnu-plus`, mapped aliases |
-| Embed iFrame | `POST https://chat.ecnu.edu.cn/open/api/embed/app` | N/A |
+Use `ecnu-max` and `ecnu-plus` for new dialog integrations. Treat historical
+names as compatibility aliases.
 
-## Current Primary Models
+### 5. Validate the request contract
 
-| Model | Underlying model | Published context | Thinking | Tools | Vision |
-|---|---|---|---|---|---|
-| `ecnu-max` | DeepSeek-V4-Flash-0731 | 1M | Supported, default off | Yes | No |
-| `ecnu-plus` | Qwen3.6-27B | 256K | Supported, default off | Yes | Yes |
+#### Embeddings
 
-The model page does not label the context figures as tokens or characters. Do
-not add a unit. The Anthropic page separately describes `ecnu-max[1m]` as 1M
-characters for Anthropic tools.
+- `input` must be one string or an array of strings.
+- Do not send OpenAI token-ID arrays.
+- ECNU documents a 1024-float output vector.
+- The direct ECNU request documents `model` and `input`; do not add an
+  unsupported dimension-selection request field.
+- With LangChain `OpenAIEmbeddings`, set
+  `check_embedding_ctx_length=False` so raw strings are sent. Verify the
+  returned vector length after the request.
 
-Prefer the model page over older endpoint examples when model names conflict.
-The former vision page now redirects to the Chat Completions multimodal
-section; use `ecnu-plus` for new image-understanding integrations and retain
-`ecnu-vl` only for compatibility.
+#### Rerank
 
-## Critical Request Contracts
-
-### Embeddings
-
-- Send `input` as one string or an array of strings: `string | string[]`.
-- Do not send integer token arrays. ECNU uses a non-OpenAI tokenizer and the
-  official docs explicitly warn that pre-tokenized OpenAI token IDs are not
-  supported.
-- The published input limit is 8192 characters. The docs do not say whether
-  this applies to each array element or the whole array, and they publish no
-  maximum batch size. State that ambiguity instead of inventing a limit.
-- Output vectors contain 1024 floats. The direct API documents only `model` and
-  `input`; do not present arbitrary dimensions as supported.
-- For LangChain `OpenAIEmbeddings`, set `dimensions=1024` and
-  `check_embedding_ctx_length=False`.
-
-### Rerank
-
-- Send `documents` as a string array and `query` as a string.
+- `documents` must be a string array.
+- `query` must be a string.
 - Each document is limited to 8192 characters.
-- `top_n` defaults to 5. The docs publish no maximum, no document-count limit,
-  and no query-length limit. Do not fabricate them.
-- `return_documents` controls whether document text is returned.
+- `top_n` defaults to 5. ECNU publishes no maximum document count, maximum
+  `top_n`, or query-length limit.
 
-### Vision
+#### Vision
 
-- Use structured message content with `text` and `image_url` parts.
-- `image_url.url` may be a public URL or a base64 data URL.
-- The API page publishes no image-count or image-size limit. A ChatECNU UI
-  release note about five uploaded images is not an API limit.
+- Use Chat Completions with structured `text` and `image_url` content parts.
+- Use `ecnu-plus`.
+- A public URL or base64 data URL may be used.
+- Do not convert a ChatECNU web-UI upload limit into an API limit.
 
-### Image and Audio
+#### Image and audio
 
-- Image prompt: at most 1024 characters. Prompts over 500 characters may be
-  compressed. Supported sizes are documented in the API reference.
-- Image URLs expire after 24 hours; transfer them immediately.
-- TTS input: at most 4096 characters. Speed range: 0.25 through 4.0.
+- Image prompts are limited to 1024 characters; prompts over 500 characters
+  may be compressed.
+- Image URLs expire after 24 hours.
+- TTS input is limited to 4096 characters.
+- TTS speed is 0.25 through 4.0.
 
-## Operational Rules
+### 6. Protect secrets, data, and credits
 
-- Avoid parallel API calls. Wait for one response before starting the next to
-  reduce service-protection failures.
-- All capabilities share the credits quota. Dialog usage distinguishes cached
-  and uncached input; cached input currently costs one fifth of uncached input.
-- Enable dialog thinking with `{"thinking": {"type": "enabled"}}`. With the
-  OpenAI Python SDK, pass this ECNU extension through `extra_body`.
-- `ecnu-max` supports `reasoning_effort` (`low` / `high` / `max`) to control
-  thinking intensity when thinking is enabled. `ecnu-plus` ignores this
-  parameter. The Anthropic-compatible API uses `output_config.effort` and the
-  Responses API uses `reasoning.effort`, both with a different set of levels
-  mapped to `ecnu-max` tiers.
-- When thinking is enabled, `temperature` and `top_p` may not take effect or
-  may be restricted; prefer defaults.
-- Outside thinking mode, the model page advises tuning `temperature`, `top_p`,
-  and other sampling parameters per the underlying models' official
-  documentation; it publishes no platform-specific defaults.
-- Native `search_mode` web search was removed. Use tool calling or an external
-  search implementation.
-- Treat `422` as a request-shape/type failure and inspect `detail`; treat `429`
-  as quota, rate, or short-term service protection.
-- Check current availability at `https://chat.ecnu.edu.cn/status`.
+Before a real request:
 
-## Read the Relevant Reference
+- use an environment variable such as `ECNU_API_KEY`;
+- remove secrets and unnecessary personal or confidential data;
+- confirm the user intended to send the supplied content to ECNU;
+- state when image generation, TTS, or other calls may consume credits;
+- never blindly retry a billable request after an ambiguous timeout.
 
-- Read [references/api_reference.md](references/api_reference.md) for exact
-  request fields, limits, response shapes, protocol roots, documented
-  ambiguities, and the Live Verification Notes on observed docs-vs-service
-  deviations.
-- Read [references/models.md](references/models.md) for model aliases,
-  deployment notes, current cached/uncached credit formulas, quotas, and errors.
-- Read [references/examples.md](references/examples.md) for minimal Python and
-  HTTP examples, including scalar and array embeddings, Responses API,
-  Anthropic 1M context, sequential batching, and error handling.
+If a key has already been pasted into a chat or public location, recommend
+revoking or rotating it after testing.
 
-When a production decision depends on a limit the reference marks as
-undocumented, verify against the official page or a controlled authenticated
-request. Do not turn an observation into a permanent platform guarantee.
+### 7. Execute and verify
 
-## Official Documentation
+For reproducible checks, run:
+
+```bash
+python scripts/smoke_test.py
+```
+
+This default profile performs model-list checks only. Low-cost POST probes are
+opt-in:
+
+```bash
+python scripts/smoke_test.py --low-cost --anthropic
+```
+
+The script reads `ECNU_API_KEY`, redacts key-shaped strings, and emits a
+structural JSON report rather than model output.
+
+### 8. Report provenance
+
+Label important conclusions as one of:
+
+- **Documented** — supported by the current official ECNU documentation.
+- **Observed** — reproduced against the live service at a stated date.
+- **Unverified** — inferred, historical, or not reproducible in the current
+  environment.
+
+Do not silently promote an observed deviation into a documented guarantee.
+
+## High-value gotchas
+
+- `GET /models` is runtime discovery, not a reliable authentication test.
+- A model appearing in `/models` does not prove that a capability is usable.
+- Use `ecnu-max[1m]` only when an Anthropic tool requires the suffix to
+  advertise long context. Fall back to plain `ecnu-max` if the suffix returns
+  an authentication or metadata error.
+- TTS errors may not match the documented JSON shape; preserve the HTTP status,
+  content type, and a bounded redacted body sample.
+- Do not depend on optional PCM metadata headers without checking them at
+  runtime.
+- `422` means request validation failed; inspect `detail`.
+- `429` may represent quota exhaustion, rate control, or short-term service
+  protection. Stop parallel retries and inspect credits first.
+
+## Official documentation
 
 - Models: https://developer.ecnu.edu.cn/vitepress/llm/model.html
 - Thinking: https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
@@ -163,6 +193,6 @@ request. Do not turn an observation into a permanent platform guarantee.
 - Quotas: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - Release notes: https://developer.ecnu.edu.cn/vitepress/llm/release.html
-- Local deployment and data security: https://developer.ecnu.edu.cn/vitepress/llm/security.html
-- Developer agreement (token rules): https://developer.ecnu.edu.cn/vitepress/llm/tos.html
+- Data security: https://developer.ecnu.edu.cn/vitepress/llm/security.html
+- Developer agreement: https://developer.ecnu.edu.cn/vitepress/llm/tos.html
 - Service status: https://chat.ecnu.edu.cn/status

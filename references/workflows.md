@@ -1,0 +1,202 @@
+# Agent Workflows
+
+Use these procedures when implementing, reviewing, troubleshooting, or live
+testing ECNU API integrations.
+
+## Implementation workflow
+
+1. Identify the requested capability and protocol.
+2. Read the relevant endpoint contract.
+3. Select a primary model rather than a historical alias.
+4. Build the smallest valid request.
+5. Keep the API key in an environment variable.
+6. Add explicit timeouts.
+7. Validate the HTTP status, content type, and response shape.
+8. Add advanced fields one at a time.
+9. Keep calls sequential unless ECNU documents otherwise.
+10. Report which behavior is documented and which is application policy.
+
+Do not start from a generic OpenAI example and assume every field is supported.
+
+## Code-review checklist
+
+Check:
+
+- correct base URL and endpoint;
+- correct model for the capability;
+- environment-based credential loading;
+- no key, ticket, or embedded URL in logs;
+- documented JSON types;
+- no OpenAI token-ID input for ECNU embeddings;
+- no undocumented embedding dimension request;
+- `ecnu-plus` for image understanding;
+- explicit timeout;
+- bounded error-body capture;
+- no automatic parallel batch;
+- no blind retry for billable POST requests;
+- output validation;
+- privacy and data-minimization requirements.
+
+## Troubleshooting workflow
+
+### 1. Capture evidence
+
+Collect:
+
+- UTC timestamp;
+- endpoint and method;
+- model name;
+- HTTP status;
+- response content type;
+- bounded, redacted body sample;
+- request field names and JSON types;
+- SDK and version, if applicable;
+- whether the request was direct HTTP or an SDK call.
+
+Do not collect the API key or full sensitive prompt.
+
+### 2. Classify the failure
+
+| Symptom | First checks |
+|---|---|
+| `401` | credential source, expiry, protocol-specific auth handling |
+| `403` | application or IP allowlist |
+| `422` | missing field, wrong JSON type, unsupported request shape |
+| `429` | credits, concurrent requests, burst protection |
+| `5xx` JSON | proxy or backend error details |
+| `5xx` plain text/HTML | preserve content type and bounded body |
+| `200` with empty data | do not assume success; validate semantics |
+| timeout | determine whether the server may still have accepted the request |
+
+### 3. Retry safely
+
+Safe read-style requests may use limited exponential backoff with jitter.
+
+For chat, embedding, and rerank, retry only when the application can tolerate
+duplicate work and the error is clearly transient.
+
+For image generation, TTS, or any billed operation, do not automatically
+resubmit after a timeout or connection drop unless the service provides an
+idempotency mechanism or the user explicitly accepts duplicate charges.
+
+Never retry:
+
+- unchanged invalid credentials;
+- a deterministic `422`;
+- a rejected request shape;
+- a known unsupported model.
+
+### 4. Compare sources
+
+Use this order:
+
+1. endpoint documentation;
+2. model and quota pages;
+3. dated known deviations;
+4. a controlled live probe.
+
+Do not use a single `/models` result as proof of endpoint support.
+
+## Live-verification workflow
+
+Use `scripts/smoke_test.py`. Its default profile limits itself to model-list
+requests.
+
+Before opt-in POST probes:
+
+1. confirm the account owner authorized testing;
+2. confirm expected credit use;
+3. minimize prompts and output tokens;
+4. remove personal or confidential data;
+5. set an explicit timeout;
+6. avoid parallel execution;
+7. write only a sanitized structural report.
+
+Example:
+
+```bash
+export ECNU_API_KEY="your-api-key"
+python scripts/smoke_test.py --low-cost --anthropic \
+  --account-type personal-token \
+  --output smoke-results.json
+```
+
+A valid report should record:
+
+- test date and Python version;
+- enabled profiles;
+- status and content type per request;
+- model IDs for `/models`;
+- vector count and output length for embeddings;
+- response structure, not successful model text;
+- transport errors without credentials.
+
+If the environment cannot reach the ECNU host, label the behavior unverified.
+Do not update the known-deviation date.
+
+## Model-discovery workflow
+
+1. Read the model page for supported primary models and capabilities.
+2. Call `/models` for runtime visibility.
+3. Reject an empty list as inconclusive rather than authenticated success.
+4. Ignore undocumented model IDs for production selection until a controlled
+   capability probe succeeds.
+5. Record capability probes by endpoint, because one model ID may not work
+   across every endpoint.
+6. Prefer documented primary names even when aliases are visible.
+
+## Embedding workflow
+
+1. Validate `input` as `str` or non-empty `list[str]`.
+2. Reject integer arrays.
+3. Keep batches conservative and sequential.
+4. With LangChain, disable client-side OpenAI token conversion.
+5. Do not send an undocumented dimension-selection field.
+6. Sort returned items by `index`.
+7. Assert that each returned vector has 1024 values.
+8. Split or reduce a batch only after a meaningful validation or size error;
+   do not claim the resulting size is an ECNU maximum.
+
+## Anthropic workflow
+
+1. Set `ANTHROPIC_BASE_URL` to the Anthropic root, not the OpenAI root.
+2. Use `ANTHROPIC_AUTH_TOKEN` from the environment.
+3. Prefer `ecnu-plus` or plain `ecnu-max`.
+4. Use `ecnu-max[1m]` only when a tool requires the suffix to advertise long
+   context.
+5. On suffix-specific metadata or authentication failure, fall back to plain
+   `ecnu-max` and report the capability difference.
+6. Do not generalize the suffix to OpenAI-compatible APIs.
+
+## Security and privacy workflow
+
+- Do not request a key in chat when an environment variable or secret manager
+  can be used.
+- If a key was exposed, recommend rotation.
+- Do not send private documents, images, secrets, personal information, or
+  internal prompts without a clear user request and appropriate handling basis.
+- Do not log embed tickets, one-time URLs, authorization headers, or raw
+  production prompts.
+- Sanitize exception bodies because proxies may echo request details.
+- Keep live-test artifacts out of version control.
+
+## Result format
+
+A useful report distinguishes:
+
+```text
+Documented:
+- ...
+
+Observed on YYYY-MM-DD:
+- ...
+
+Unverified or environment-limited:
+- ...
+
+Recommended application policy:
+- ...
+```
+
+This prevents application safeguards and one-time observations from being
+mistaken for platform guarantees.

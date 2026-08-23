@@ -1,50 +1,14 @@
 # ECNU API Examples
 
-These examples favor explicit request shapes and safe defaults. They do not
-demonstrate undocumented parameters or parallel calls.
-
-## Table of Contents
-
-- [Setup](#setup)
-- [Chat Completions](#chat-completions)
-- [Responses API](#responses-api)
-- [Thinking and Streaming](#thinking-and-streaming)
-- [Tool Calling](#tool-calling)
-- [Vision](#vision)
-- [Embeddings](#embeddings)
-- [LangChain Embeddings](#langchain-embeddings)
-- [Rerank](#rerank)
-- [Image Generation](#image-generation)
-- [Text-to-Speech](#text-to-speech)
-- [Structured Output](#structured-output)
-- [Anthropic Compatibility](#anthropic-compatibility)
-- [Model Discovery](#model-discovery)
-- [HTTP Error Handling](#http-error-handling)
-- [Sequential Workloads](#sequential-workloads)
+These examples use environment variables, explicit request shapes, and
+sequential calls. They avoid undocumented parameters.
 
 ## Setup
 
-Install only the SDKs used by the selected examples:
-
 ```bash
 pip install openai requests
-```
-
-Keep the API key in an environment variable.
-
-PowerShell:
-
-```powershell
-$env:ECNU_API_KEY = "your-api-key"
-```
-
-macOS or Linux:
-
-```bash
 export ECNU_API_KEY="your-api-key"
 ```
-
-Create the OpenAI-compatible client:
 
 ```python
 import os
@@ -72,12 +36,7 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
-The documented roles are `system`, `user`, and `assistant`. Keep
-`temperature` and `top_p` between 0 and 1 when setting them explicitly.
-
 ## Responses API
-
-Both primary dialog models support the OpenAI Responses format:
 
 ```python
 response = client.responses.create(
@@ -88,33 +47,12 @@ response = client.responses.create(
 print(response.output_text)
 ```
 
-The ECNU page does not publish a complete list of supported OpenAI Responses
-tools or event types. Start with text input and verify advanced features before
-depending on them.
+Start with text input. Verify advanced Responses tools and streaming events
+before depending on them.
 
-## Thinking and Streaming
+## Thinking mode
 
-`thinking` is an ECNU request extension. Pass it through `extra_body`:
-
-```python
-completion = client.chat.completions.create(
-    model="ecnu-max",
-    messages=[{"role": "user", "content": "Analyze this problem."}],
-    extra_body={"thinking": {"type": "enabled"}},
-)
-
-message = completion.choices[0].message
-reasoning = getattr(message, "reasoning_content", None)
-if reasoning:
-    print("Reasoning:", reasoning)
-print("Answer:", message.content)
-```
-
-### Reasoning Effort
-
-`ecnu-max` supports `reasoning_effort` to control thinking intensity. It
-accepts `low`, `high`, or `max`, and only takes effect when thinking is
-enabled. `ecnu-plus` ignores this parameter:
+Pass ECNU extensions through `extra_body`:
 
 ```python
 completion = client.chat.completions.create(
@@ -127,19 +65,14 @@ completion = client.chat.completions.create(
 )
 
 message = completion.choices[0].message
-reasoning = getattr(message, "reasoning_content", None)
-if reasoning:
-    print("Reasoning:", reasoning)
-print("Answer:", message.content)
+answer = message.content
+print(answer)
 ```
 
-Higher intensity produces more thorough reasoning but increases latency and
-token consumption. When thinking is enabled, `temperature` and `top_p` may not
-take effect or may be restricted; prefer defaults.
+Do not print hidden reasoning in user-facing applications. Preserve
+`reasoning_content` only when required for a subsequent tool-using turn.
 
-### Streaming
-
-Stream text deltas:
+## Streaming
 
 ```python
 stream = client.chat.completions.create(
@@ -154,7 +87,7 @@ for chunk in stream:
         print(delta, end="", flush=True)
 ```
 
-## Tool Calling
+## Tool calling
 
 ```python
 tools = [
@@ -166,10 +99,7 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "City name, such as Shanghai.",
-                    }
+                    "location": {"type": "string"},
                 },
                 "required": ["location"],
             },
@@ -183,17 +113,14 @@ completion = client.chat.completions.create(
     tools=tools,
 )
 
-message = completion.choices[0].message
-for call in message.tool_calls or []:
+for call in completion.choices[0].message.tool_calls or []:
     print(call.id, call.function.name, call.function.arguments)
 ```
 
-The caller must execute the function and send the result back in a subsequent
-message. ECNU does not execute user-defined functions for the caller.
+The caller must execute the function and submit the tool result in a subsequent
+turn.
 
 ## Vision
-
-Use `ecnu-plus` for new integrations. A public image URL:
 
 ```python
 completion = client.chat.completions.create(
@@ -215,46 +142,12 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
-A local image as a base64 data URL:
-
-```python
-import base64
-from pathlib import Path
-
-image_bytes = Path("image.jpg").read_bytes()
-image_b64 = base64.b64encode(image_bytes).decode("ascii")
-
-completion = client.chat.completions.create(
-    model="ecnu-plus",
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "Describe this image."},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_b64}"
-                    },
-                },
-            ],
-        }
-    ],
-)
-```
-
-The API docs publish no image-count, byte-size, or pixel limit. Do not encode a
-web UI upload limit as an API validation rule.
+For a local image, base64-encode it into a data URL. Do not assume undocumented
+image-count, byte-size, or pixel limits.
 
 ## Embeddings
 
-The key distinction is JSON type:
-
-- One text: `input="..."`
-- Multiple texts in one HTTP request: `input=["...", "..."]`
-- Unsupported: integer token IDs such as `input=[123, 456]`
-
-### One text
+One text:
 
 ```python
 response = client.embeddings.create(
@@ -264,64 +157,32 @@ response = client.embeddings.create(
 
 vector = response.data[0].embedding
 assert len(vector) == 1024
-print(response.data[0].index, len(vector))
 ```
 
-### String array
+Several texts in one request:
 
 ```python
 texts = [
     "华东师范大学是综合性研究型大学。",
     "量子计算是计算科学的前沿领域。",
-    "求实创造，为人师表。",
 ]
 
 if not texts or not all(isinstance(text, str) for text in texts):
-    raise TypeError("Embedding input must be a non-empty string array")
+    raise TypeError("input must be a non-empty string array")
 
 response = client.embeddings.create(
     model="ecnu-embedding-small",
     input=texts,
 )
 
-vectors_by_index = {
-    item.index: item.embedding
-    for item in response.data
-}
-
-for index, text in enumerate(texts):
-    vector = vectors_by_index[index]
-    assert len(vector) == 1024
-    print(index, text[:20], len(vector))
+ordered = sorted(response.data, key=lambda item: item.index)
+vectors = [item.embedding for item in ordered]
+assert all(len(vector) == 1024 for vector in vectors)
 ```
 
-The published limit is 8192 characters, but the official page does not say
-whether an array is checked per element, by combined characters, or both. It
-also publishes no maximum item count. Keep batches conservative and split a
-batch on `422` rather than claiming a guessed maximum.
+Do not send integer token IDs.
 
-For many texts, call sequential batches:
-
-```python
-def chunks(items, size):
-    for start in range(0, len(items), size):
-        yield items[start:start + size]
-
-
-all_vectors = []
-for batch in chunks(texts, size=16):  # Client policy, not an ECNU limit.
-    response = client.embeddings.create(
-        model="ecnu-embedding-small",
-        input=batch,
-    )
-    ordered = sorted(response.data, key=lambda item: item.index)
-    all_vectors.extend(item.embedding for item in ordered)
-```
-
-Do not run these batches concurrently. The size `16` is an application choice
-for conservative requests, not a documented platform maximum.
-
-## LangChain Embeddings
+### LangChain embeddings
 
 ```bash
 pip install langchain-openai
@@ -334,7 +195,6 @@ embeddings = OpenAIEmbeddings(
     base_url="https://chat.ecnu.edu.cn/open/api/v1",
     api_key=api_key,
     model="ecnu-embedding-small",
-    dimensions=1024,
     check_embedding_ctx_length=False,
 )
 
@@ -342,14 +202,31 @@ vector = embeddings.embed_query("Hello world")
 assert len(vector) == 1024
 ```
 
-`check_embedding_ctx_length=False` is required because LangChain otherwise may
-convert strings into OpenAI token IDs. ECNU accepts strings, not OpenAI token
-arrays. `dimensions=1024` describes the fixed output size; it does not request
-an alternative size from ECNU.
+`check_embedding_ctx_length=False` prevents LangChain from converting strings
+to OpenAI token IDs. Validate the fixed output size after the response; do not
+send a dimension-selection request field that ECNU does not document.
+
+For many texts, use conservative sequential batches:
+
+```python
+def chunks(items, size):
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+all_vectors = []
+for batch in chunks(texts, size=16):  # Application policy, not an ECNU limit.
+    response = client.embeddings.create(
+        model="ecnu-embedding-small",
+        input=batch,
+    )
+    ordered = sorted(response.data, key=lambda item: item.index)
+    all_vectors.extend(item.embedding for item in ordered)
+```
 
 ## Rerank
 
-Use direct HTTP because the OpenAI SDK has no rerank resource:
+The OpenAI SDK has no rerank resource, so use direct HTTP:
 
 ```python
 import requests
@@ -357,16 +234,15 @@ import requests
 documents = [
     "华东师范大学是教育部直属的综合性研究型大学。",
     "量子计算是计算科学的前沿领域。",
-    "学校校训是求实创造，为人师表。",
 ]
-top_n = 3
+top_n = 2
 
 if not documents or not all(isinstance(doc, str) for doc in documents):
     raise TypeError("documents must be a non-empty string array")
 if any(len(doc) > 8192 for doc in documents):
-    raise ValueError("Each rerank document must be at most 8192 characters")
+    raise ValueError("each document must be at most 8192 characters")
 if not 1 <= top_n <= len(documents):
-    raise ValueError("Application policy requires 1 <= top_n <= document count")
+    raise ValueError("application policy requires a valid result count")
 
 response = requests.post(
     "https://chat.ecnu.edu.cn/open/api/v1/rerank",
@@ -383,17 +259,17 @@ response = requests.post(
     },
     timeout=60,
 )
-
 response.raise_for_status()
+
 for result in response.json()["results"]:
     print(result["index"], result["relevance_score"])
-    print(result.get("document", ""))
 ```
 
-The `top_n <= document count` check is sensible client logic, not a published
-ECNU maximum. The service docs specify only the default `top_n=5`.
+The local `top_n` check is application policy, not a published ECNU maximum.
 
-## Image Generation
+## Image generation
+
+This call consumes credits. Do not run it merely to validate code.
 
 ```python
 response = client.images.generate(
@@ -406,14 +282,12 @@ response = client.images.generate(
 print(response.data[0].url)
 ```
 
-Prompts are limited to 1024 characters and may be compressed over 500
-characters. URL results expire after 24 hours; download or transfer them
-immediately.
+Transfer URL results before their 24-hour expiry. Do not blindly retry after an
+ambiguous timeout.
 
-Supported sizes are `512x512`, `768x768`, `720x1280`, `1280x720`, and
-`1024x1024`.
+## Text-to-speech
 
-## Text-to-Speech
+This call consumes credits:
 
 ```python
 response = client.audio.speech.create(
@@ -427,31 +301,10 @@ response = client.audio.speech.create(
 response.stream_to_file("output.mp3")
 ```
 
-Input is limited to 4096 characters. The model page states that the underlying
-model was updated to Fun-CosyVoice3-0.5B with 16 voice types; see the API
-reference for the full voice list. Speed is 0.25 through 4.0. Multiple texts
-require separate sequential API calls:
+Multiple texts require separate sequential calls. They are not one batch API
+request.
 
-```python
-jobs = [
-    ("第一段文本。", "xiayu"),
-    ("第二段文本。", "female_sweet"),
-    ("第三段文本。", "male_news"),
-]
-
-for index, (text, voice) in enumerate(jobs, start=1):
-    response = client.audio.speech.create(
-        model="ecnu-tts",
-        input=text,
-        voice=voice,
-        response_format="mp3",
-    )
-    response.stream_to_file(f"speech-{index}.mp3")
-```
-
-This loop is not a batch request; each iteration consumes one TTS call.
-
-## Structured Output
+## Structured output
 
 ```python
 import json
@@ -471,12 +324,12 @@ completion = client.chat.completions.create(
     messages=[
         {
             "role": "system",
-            "content": (
-                "Extract name, department, and title. "
-                "Return values matching the supplied schema."
-            ),
+            "content": "Extract name, department, and title.",
         },
-        {"role": "user", "content": "张三，法律事务部高级总监。"},
+        {
+            "role": "user",
+            "content": "张三，法律事务部高级总监。",
+        },
     ],
     response_format={
         "type": "json_schema",
@@ -492,25 +345,10 @@ result = json.loads(completion.choices[0].message.content)
 print(result)
 ```
 
-XGrammar constrains structure, not meaning. Keep explicit instructions and
-enough `max_tokens` for all required fields.
-
-## Anthropic Compatibility
+## Anthropic compatibility
 
 ```bash
 pip install anthropic
-```
-
-PowerShell:
-
-```powershell
-$env:ANTHROPIC_BASE_URL = "https://chat.ecnu.edu.cn/open/api/anthropic"
-$env:ANTHROPIC_AUTH_TOKEN = $env:ECNU_API_KEY
-```
-
-macOS or Linux:
-
-```bash
 export ANTHROPIC_BASE_URL="https://chat.ecnu.edu.cn/open/api/anthropic"
 export ANTHROPIC_AUTH_TOKEN="$ECNU_API_KEY"
 ```
@@ -523,7 +361,6 @@ anthropic_client = anthropic.Anthropic()
 message = anthropic_client.messages.create(
     model="ecnu-plus",
     max_tokens=1000,
-    system="You are a helpful assistant.",
     messages=[
         {
             "role": "user",
@@ -535,47 +372,31 @@ message = anthropic_client.messages.create(
 print(message.content)
 ```
 
-For an Anthropic tool that relies on the model name to recognize the larger
-context window:
+Use plain `ecnu-max` by default. Only try `ecnu-max[1m]` when an Anthropic tool
+must recognize the long-context suffix:
 
 ```python
-message = anthropic_client.messages.create(
-    model="ecnu-max[1m]",
-    max_tokens=1000,
-    messages=[{"role": "user", "content": "Summarize the long context."}],
-)
+def create_long_context_message(client, messages):
+    try:
+        return client.messages.create(
+            model="ecnu-max[1m]",
+            max_tokens=1000,
+            messages=messages,
+        )
+    except anthropic.AuthenticationError:
+        return client.messages.create(
+            model="ecnu-max",
+            max_tokens=1000,
+            messages=messages,
+        )
 ```
 
-The suffix is specific to the Anthropic compatibility layer. `opus` names map
-to `ecnu-max`; `sonnet`, `haiku`, and other unrecognized names map to
-`ecnu-plus`.
+Log the fallback without logging prompts or credentials. The fallback preserves
+model access but may not advertise the same context capability to the client.
 
-The Anthropic-compatible API also supports `output_config.effort` to control
-thinking intensity for `ecnu-max`. The proxy maps `minimal`/`low` to `low`,
-`medium`/`high`/`xhigh` to `high`, `max` to `max`, and `none` to thinking
-disabled.
+## Error handling
 
-The Responses-compatible API supports `reasoning.effort` with the same tier
-mapping. Passing `reasoning.effort: "none"` disables thinking.
-
-When `ecnu-max` is called through either compatibility layer, the service
-automatically strips image content from the request. Use `ecnu-plus` for
-vision tasks.
-
-## Model Discovery
-
-```python
-models = client.models.list()
-for model in models.data:
-    print(model.id, model.owned_by)
-```
-
-Use the response to discover current IDs, then use the model documentation to
-interpret aliases, vision support, thinking defaults, and pricing.
-
-## HTTP Error Handling
-
-`detail` may be a string or a validation-error array. Preserve both forms:
+Preserve string and array forms of `detail`, and tolerate non-JSON errors:
 
 ```python
 def raise_ecnu_error(response):
@@ -592,36 +413,11 @@ def raise_ecnu_error(response):
     else:
         detail = response.text[:1000]
 
-    raise RuntimeError(f"ECNU API HTTP {response.status_code}: {detail}")
-```
-
-Interpret common statuses before retrying:
-
-- `401`: fix token handling; do not retry unchanged credentials.
-- `403`: verify the application's IP allowlist.
-- `422`: inspect JSON field type and `detail[].loc`; splitting a genuinely
-  oversized batch may help, but blind retry does not.
-- `429`: stop concurrent calls, inspect credits, then retry later with backoff.
-
-## Sequential Workloads
-
-Do not use a thread pool or `asyncio.gather` for ECNU batches. Process one
-request at a time and keep enough information to resume safely:
-
-```python
-results = []
-for index, prompt in enumerate(prompts):
-    completion = client.chat.completions.create(
-        model="ecnu-plus",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    results.append(
-        {
-            "index": index,
-            "content": completion.choices[0].message.content,
-        }
+    raise RuntimeError(
+        f"ECNU API HTTP {response.status_code}: {detail}"
     )
 ```
 
-Sequential calls improve stability and make `429` recovery, credit accounting,
-and partial-result persistence easier to reason about.
+Do not retry unchanged credentials after `401`. For `422`, inspect field paths
+and types. For `429`, stop concurrency, inspect credits, then use bounded
+backoff. Do not blindly retry billable calls after an ambiguous timeout.
