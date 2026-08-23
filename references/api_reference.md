@@ -76,6 +76,10 @@ Documented request fields include:
 | `response_format` | object | Structured output |
 | `max_tokens` | integer | Use enough room for complete output |
 
+A live-verified tool-result continuation preserves the assistant tool call,
+then adds a message with `role: "tool"`, the matching `tool_call_id`, and the
+tool result in `content`.
+
 Pass ECNU-specific fields through `extra_body` when using the OpenAI Python
 SDK.
 
@@ -90,6 +94,10 @@ expose hidden reasoning to end users merely because a response field exists.
 A non-streaming response follows the OpenAI completion-list shape with
 `choices[].message`, `finish_reason`, and `usage`. For streaming, parse SSE
 `data:` lines and stop at `[DONE]`.
+
+Do not require a response `model` value to equal the requested model name. The
+official examples either omit that field or show a backend label different from
+the requested name. Treat it as response metadata, not a stable alias echo.
 
 Native `search_mode` web search was removed. Implement search through tool
 calling or an external search service.
@@ -216,10 +224,37 @@ POST https://chat.ecnu.edu.cn/open/api/v1/audio/speech
 | `response_format` | string | No | `mp3`, `opus`, `aac`, `flac`, `wav`, `pcm` |
 | `speed` | number | No | 0.25 through 4.0 |
 
-The success body is binary audio with a format-specific content type. Do not
-parse it as JSON. The official docs and model page may not list voices in the
-same place or at the same update time; consult the current TTS page before
-validating a voice ID.
+The 16 documented voice IDs are:
+
+| Category | Voice IDs |
+|---|---|
+| Campus | `xiayu`, `liwa` |
+| Male | `male_warm`, `male_steady`, `male_news`, `male_philosophy`, `yunze` |
+| Female | `female_sweet`, `female_literary`, `female_news` |
+| Dialect | `sichuan`, `tianjin`, `shaanxi` |
+| Multilingual and roles | `japanese`, `lindaiyu`, `labixiaoxin` |
+
+The success body is binary audio with a format-specific `Content-Type` and a
+`Content-Disposition` header containing a suggested filename. Do not parse it
+as JSON. For `pcm`, the documented response also includes `Content-Rate`
+(sampling rate), `Content-Channels` (fixed at 1), and `Content-Bits` (fixed at
+16).
+
+Invalid parameters are documented to return `400` JSON with this shape:
+
+```json
+{
+  "error": "<message>",
+  "request_id": "<request-id>",
+  "details": {
+    "available_voices": ["xiayu", "liwa"]
+  }
+}
+```
+
+The documented `details` object supplies applicable supplemental information;
+the invalid-voice example uses `available_voices`. Other documented messages
+cover missing input, out-of-range speed, and unsupported response formats.
 
 "Batch TTS" examples are sequential client loops, not one batch request.
 
@@ -229,10 +264,16 @@ validating a voice ID.
 GET https://chat.ecnu.edu.cn/open/api/v1/models
 ```
 
-The documented response is an OpenAI-style list with `data[].id`, `object`,
-`created`, and `owned_by`. Use it for runtime visibility, then consult the model
-documentation for capabilities, aliases, and prices. Do not treat visibility
-alone as a capability guarantee or an authentication check.
+The official request example uses bearer authentication and has no request
+parameters. The documented response is an OpenAI-style list with a top-level
+`object: "list"` and model entries in `data`; each entry has `id`, `object`
+(fixed to `model`), `created`, and `owned_by`.
+
+Use this endpoint for runtime visibility, then consult the model documentation
+for capabilities, aliases, and prices. Do not treat visibility alone as a
+capability guarantee. Dated runtime differences, including authentication
+behavior, belong in [known_deviations.md](known_deviations.md) and do not change
+the documented contract here.
 
 ## Structured output
 
@@ -266,8 +307,12 @@ Set:
 
 ```text
 ANTHROPIC_BASE_URL=https://chat.ecnu.edu.cn/open/api/anthropic
-ANTHROPIC_AUTH_TOKEN=<ECNU_API_KEY>
+ECNU_API_KEY=<your-api-key>
 ```
+
+Pass `ECNU_API_KEY` explicitly to the Anthropic SDK as its `api_key`. Only if a
+generic Anthropic client cannot accept that variable name, map the same runtime
+value to the client-specific token variable without logging or persisting it.
 
 Documented mappings:
 
@@ -282,6 +327,10 @@ Documented mappings:
 The documentation describes `ecnu-max[1m]` for Anthropic tools that inspect the
 model name to advertise a 1M-character context. Treat the suffix as
 compatibility metadata, not a model name for OpenAI-compatible endpoints.
+
+These mappings describe internal compatibility routing. The Anthropic page does
+not document whether a response `model` value echoes the requested alias or
+names the effective ECNU model, so clients must not depend on either behavior.
 
 `output_config.effort` controls thinking intensity for `ecnu-max`; `none`
 disables thinking. `ecnu-plus` ignores this field.
@@ -300,6 +349,7 @@ or persist them. Tickets are one-time use and expire.
 
 | Status | Typical meaning |
 |---|---|
+| `400` | Invalid TTS parameters; `/audio/speech` documents an endpoint-specific JSON error |
 | `401` | Missing or invalid credentials |
 | `403` | Application or client IP is not authorized |
 | `422` | Request body validation failed |

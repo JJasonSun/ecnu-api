@@ -45,14 +45,27 @@ Prefer the primary names for new integrations.
 Anthropic mappings are broader: `opus` maps to `ecnu-max`; `sonnet` and `haiku`
 map to `ecnu-plus`; other unrecognized names map to `ecnu-plus`.
 
+These are internal compatibility-routing rules. The official Anthropic page
+does not document whether the response `model` field echoes the requested alias
+or identifies the effective ECNU model.
+
+## Model identifiers in responses
+
+A request model name selects a documented primary model or compatibility route;
+it is not guaranteed to be echoed as the response label. Official Chat
+Completions examples omit `model` in some responses and use a backend label in
+others. Treat a returned `model` value as response metadata and do not require
+equality with the requested name. The Anthropic response-label behavior is not
+documented.
+
 ## Specialized models
 
 | Model | Underlying model | Contract |
 |---|---|---|
-| `ecnu-embedding-small` | bge-m3 | Raw string or string array; 1024-float output |
+| `ecnu-embedding-small` | bge-m3 | Raw string or string array; documented input limit 8192 characters; 1024-float output |
 | `ecnu-rerank` | bge-reranker-v2-m3 | String documents; 8192 characters per document |
 | `ecnu-image` | Z-Image-Turbo | Prompt at most 1024 characters |
-| `ecnu-tts` | Fun-CosyVoice3-0.5B | Input at most 4096 characters |
+| `ecnu-tts` | Fun-CosyVoice3-0.5B | Input at most 4096 characters; 16 documented voices |
 
 The model page labels embedding and rerank context as `8K`, while endpoint pages
 express request limits in characters. Use the endpoint wording when validating
@@ -94,8 +107,7 @@ hidden reasoning to end users.
 
 ## Shared credits quotas
 
-The repository documentation available on 2026-08-22 records these defaults
-for personal tokens:
+The current official quota page documents these defaults for personal tokens:
 
 | Period | Default quota |
 |---|---|
@@ -121,7 +133,7 @@ it is not a guarantee for an application.
 
 ## Fixed-cost capabilities
 
-The repository documentation available on 2026-08-22 records:
+The current official quota page documents:
 
 | Capability | Model | Cost |
 |---|---|---|

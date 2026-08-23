@@ -31,6 +31,7 @@ Check:
 - no undocumented embedding dimension request;
 - `ecnu-plus` for image understanding;
 - explicit timeout;
+- SDK retries disabled with `max_retries=0` for live probes;
 - bounded error-body capture;
 - no automatic parallel batch;
 - no blind retry for billable POST requests;
@@ -66,14 +67,16 @@ Do not collect the API key or full sensitive prompt.
 | `5xx` JSON | proxy or backend error details |
 | `5xx` plain text/HTML | preserve content type and bounded body |
 | `200` with empty data | do not assume success; validate semantics |
-| timeout | determine whether the server may still have accepted the request |
+| timeout or connection drop | mark inconclusive; the server may still have accepted the request |
 
 ### 3. Retry safely
 
-Safe read-style requests may use limited exponential backoff with jitter.
+Safe GET requests may use limited exponential backoff with jitter. The live
+validator never retries POST requests.
 
-For chat, embedding, and rerank, retry only when the application can tolerate
-duplicate work and the error is clearly transient.
+Treat a POST timeout, connection drop, or truncated response as inconclusive.
+Stop the flow and do not resubmit automatically; a later rerun is a new,
+explicitly authorized request because the first request may have succeeded.
 
 For image generation, TTS, or any billed operation, do not automatically
 resubmit after a timeout or connection drop unless the service provides an
@@ -99,8 +102,9 @@ Do not use a single `/models` result as proof of endpoint support.
 
 ## Live-verification workflow
 
-Use `scripts/smoke_test.py`. Its default profile limits itself to model-list
-requests.
+Use `scripts/smoke_test.py`. Its default `auth` profile performs only service
+status and model-list GET requests. The script uses fixed ECNU hosts, serial
+requests, explicit timeouts, no POST retry, and a credit ceiling.
 
 Before opt-in POST probes:
 
@@ -112,24 +116,58 @@ Before opt-in POST probes:
 6. avoid parallel execution;
 7. write only a sanitized structural report.
 
-Example:
+Create reports only under the ignored artifact directory. Model discovery and
+the documented `401` expectations are non-billable:
 
 ```bash
+mkdir -p .live-artifacts
 export ECNU_API_KEY="your-api-key"
-python scripts/smoke_test.py --low-cost --anthropic \
+python3 scripts/smoke_test.py --profile auth --max-credits 0 --timeout 30 \
   --account-type personal-token \
-  --output smoke-results.json
+  --output .live-artifacts/auth.json
 ```
 
-A valid report should record:
+Exercise a valid-token gate, one invalid-token POST, and two request-shape
+checks with a conservative allowance. These are real POST requests and require
+account-owner authorization:
+
+```bash
+python3 scripts/smoke_test.py --profile core --max-credits 0.06 --timeout 60 \
+  --case models_valid \
+  --case error_invalid_token_post \
+  --case error_missing_model \
+  --case error_wrong_messages_type \
+  --account-type personal-token \
+  --output .live-artifacts/auth-and-422.json
+```
+
+The report stores the actual status and JSON shape even when the observed
+service behavior differs from the documented `401` or `422` expectation. Do
+not include `--strict` when the purpose is to collect deviation evidence.
+
+A valid report records:
 
 - test date and Python version;
 - enabled profiles;
 - status and content type per request;
 - model IDs for `/models`;
 - vector count and output length for embeddings;
-- response structure, not successful model text;
-- transport errors without credentials.
+- response structure, not successful model text or reasoning;
+- bounded, redacted errors and allowlisted request IDs;
+- transport errors as `inconclusive`, without credentials.
+
+Interpret evidence per case:
+
+| `result` | Meaning |
+|---|---|
+| `pass` | structural expectation passed in this dated run |
+| `mismatch` | observed evidence differs from the documented expectation |
+| `inconclusive` | no supportable endpoint conclusion, including transport failure |
+| `skipped` | the case did not run and provides no live evidence |
+
+`classification: observed` is point-in-time evidence, not a platform
+guarantee. Reproduce a mismatch before changing `known_deviations.md`; never
+promote an inconclusive or skipped case into a claim.
 
 If the environment cannot reach the ECNU host, label the behavior unverified.
 Do not update the known-deviation date.
@@ -145,6 +183,29 @@ Do not update the known-deviation date.
    across every endpoint.
 6. Prefer documented primary names even when aliases are visible.
 
+The `auth` command above is the executable discovery flow. A `200` response
+with an empty `data` array does not prove authentication.
+
+## Thinking-and-tool workflow
+
+Thinking tool calls are a two-turn protocol. The second request must splice the
+returned assistant message, including its `reasoning_content`, immediately
+before the tool result. Keep that assistant message in process memory only;
+never print it or write it to the report, and clear it after the second turn.
+
+```bash
+python3 scripts/smoke_test.py --profile core --max-credits 1.2 --timeout 60 \
+  --case models_valid \
+  --case chat_thinking_tool_first \
+  --case chat_thinking_tool_continue \
+  --account-type personal-token \
+  --output .live-artifacts/thinking-tool.json
+```
+
+The validator retains the first assistant message only in ephemeral run state,
+submits one tool result, then clears that state before writing the sanitized
+structural report.
+
 ## Embedding workflow
 
 1. Validate `input` as `str` or non-empty `list[str]`.
@@ -159,14 +220,52 @@ Do not update the known-deviation date.
 
 ## Anthropic workflow
 
-1. Set `ANTHROPIC_BASE_URL` to the Anthropic root, not the OpenAI root.
-2. Use `ANTHROPIC_AUTH_TOKEN` from the environment.
+1. Use the Anthropic root, not the OpenAI root.
+2. Read `ECNU_API_KEY` from the environment and pass it to the SDK; set an
+   explicit timeout and `max_retries=0`.
 3. Prefer `ecnu-plus` or plain `ecnu-max`.
 4. Use `ecnu-max[1m]` only when a tool requires the suffix to advertise long
    context.
-5. On suffix-specific metadata or authentication failure, fall back to plain
-   `ecnu-max` and report the capability difference.
+5. After plain `ecnu-max` was verified with the same credential, fall back once
+   on the known suffix-specific `401` and report the capability difference.
 6. Do not generalize the suffix to OpenAI-compatible APIs.
+
+Probe the suffix and its plain-model control narrowly:
+
+```bash
+python3 scripts/smoke_test.py --profile compatibility --max-credits 0.16 \
+  --timeout 60 \
+  --case models_valid \
+  --case anthropic_max_1m \
+  --case anthropic_max_1m_fallback_plain_max \
+  --account-type personal-token \
+  --output .live-artifacts/anthropic-1m.json
+```
+
+In application code, fall back once only when the `[1m]` request itself returns
+the known suffix-specific `401`, plain `ecnu-max` was already verified with the
+same credential, and the caller accepts losing the long-context capability
+signal. Otherwise surface the error.
+
+## Budgeted billable workflow
+
+Select exact billable cases and set a ceiling equal to their conservative
+planned cost. The script reserves budget before each request and stops before
+the next case would exceed it. For example, after explicit authorization for a
+5-credit TTS probe and a 30-credit image probe:
+
+```bash
+python3 scripts/smoke_test.py --profile billable --max-credits 35 --timeout 60 \
+  --case models_valid \
+  --case tts_xiayu_pcm \
+  --case image_generation_documented \
+  --account-type personal-token \
+  --output .live-artifacts/billable.json
+```
+
+The image case attempts a bounded, public-network-safe validation without
+persisting its one-time URL or generated bytes. A rejected download target or
+transport failure is `inconclusive`; the billable POST is not retried.
 
 ## Security and privacy workflow
 
