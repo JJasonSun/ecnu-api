@@ -149,6 +149,20 @@ contract matches live behavior.
 - Do not add local absolute paths or machine-specific deployment instructions.
 - Run repository validation before opening a pull request.
 
+## Revalidate after ECNU platform updates
+
+An ECNU release, model rollout, endpoint change, quota change, or announced fix
+is a reason to consider a new targeted validation; it is not evidence that an
+active deviation has been resolved. Review the updated official contract,
+recalculate the credit allowance, and run only the affected `--case` probes
+serially with fresh sanitized evidence. Billable TTS or image probes require
+new account-owner authorization and must never run automatically.
+
+Update an observation date or mark a deviation `resolved` only after the same
+behavior has been exercised again with the current runner. Preserve the prior
+entry when the new run is inconclusive, and record both the changed contract
+and the new observed result when the platform update changes expectations.
+
 ## Official documentation
 
 API details can change. Verify production-critical behavior against the current

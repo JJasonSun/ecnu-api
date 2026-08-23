@@ -234,3 +234,9 @@ proves or disproves internal routing.
 2. Use only `active`, `resolved`, `inconclusive`, or `not-retested` as status.
 3. Remove keys, prompts, generated content, one-time URLs, and reasoning text.
 4. Do not mark an item resolved from an unrelated success or an unexecuted case.
+5. Treat an ECNU release, model rollout, endpoint change, quota change, or
+   announced fix as a revalidation trigger, not as resolution evidence.
+6. Recheck the current contract and pricing, then rerun only the affected cases
+   with the current runner before changing dates, expectations, or statuses.
+7. Require new account-owner authorization for billable revalidation; never
+   schedule TTS or image-generation probes automatically.
