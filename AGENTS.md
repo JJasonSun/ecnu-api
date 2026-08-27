@@ -24,7 +24,7 @@ The repository content is the skill; there is no production application.
 - Do not invent undocumented fields, limits, model capabilities, or prices.
 - Put point-in-time behavior only in `known_deviations.md` with dated evidence.
 - Keep examples sequential, timeout-bounded, and environment-key based.
-- Do not modify files outside this repository unless the user explicitly asks.
+- Maintain this repository with Git; update the deployed skill via `npx skills update -g ecnu-api`, never by manually copying it.
 
 ## Validation
 
