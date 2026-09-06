@@ -854,6 +854,88 @@ class PreflightMatcherTest(unittest.TestCase):
         )
 
 
+class StructuredOutputTest(unittest.TestCase):
+    @staticmethod
+    def shape(kind: str, content: str, finish_reason: str | None = "stop"):
+        response = smoke_test.HttpResult(
+            200,
+            {"content-type": "application/json"},
+            json.dumps(
+                {
+                    "choices": [{"message": {"content": content}, "finish_reason": finish_reason}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                }
+            ).encode(),
+        )
+        return smoke_test.summarize_response(kind, response)
+
+    def test_matrix_covers_both_models_and_formats(self) -> None:
+        cases = [case for case in smoke_test.build_cases() if case.case_id.startswith("structured_output_")]
+        matrix = set()
+        for case in cases:
+            payload = case.payload_factory(None)
+            response_format = payload["response_format"]
+            matrix.add((payload["model"], response_format["type"]))
+            self.assertEqual(case.profiles, frozenset({"core"}))
+            self.assertEqual(payload["max_tokens"], 128)
+            self.assertIn("Markdown", payload["messages"][0]["content"])
+            if response_format["type"] == "json_schema":
+                self.assertEqual(response_format["json_schema"]["schema"], smoke_test.STRUCTURED_SCHEMA)
+                self.assertEqual(case.response_kind, "structured")
+            else:
+                self.assertEqual(response_format, {"type": "json_object"})
+                self.assertEqual(case.response_kind, "structured_object")
+        self.assertEqual(len(cases), 4)
+        self.assertEqual(
+            matrix,
+            {(model, kind) for model in ("ecnu-plus", "ecnu-max") for kind in ("json_schema", "json_object")},
+        )
+
+    def test_schema_checks_fields_but_not_semantic_correctness(self) -> None:
+        content = '{"name":"wrong name","department":"wrong department"}'
+        shape = self.shape("structured", content)
+        self.assertTrue(smoke_test.response_matches("structured", 200, shape))
+        self.assertFalse(shape["semantic_match"])
+        self.assertNotIn("wrong name", json.dumps(shape))
+        for content in ('{}', '{"name":"n"}', '{"name":1,"department":"d"}', '{"name":"n","department":"d","extra":true}'):
+            with self.subTest(content=content):
+                shape = self.shape("structured", content)
+                self.assertFalse(smoke_test.response_matches("structured", 200, shape))
+
+    def test_json_object_does_not_require_schema_fields(self) -> None:
+        for content in ('{}', '{"arbitrary":[1,true,null]}'):
+            with self.subTest(content=content):
+                shape = self.shape("structured_object", content)
+                self.assertTrue(smoke_test.response_matches("structured_object", 200, shape))
+                for field in ("schema_valid", "required_fields_valid", "additional_property_count", "semantic_match"):
+                    self.assertNotIn(field, shape)
+
+    def test_both_formats_reject_fences_non_objects_and_invalid_json(self) -> None:
+        invalid_contents = (
+            '```json\n{"name":"n","department":"d"}\n```',
+            '{"name":"n","department":',
+            '[]',
+            'null',
+            '{"name":"n","department":"d","invalid":NaN}',
+            '{"invalid":Infinity}',
+        )
+        for kind in ("structured", "structured_object"):
+            for content in invalid_contents:
+                with self.subTest(kind=kind, content=content):
+                    shape = self.shape(kind, content)
+                    self.assertFalse(shape["structured_json_valid"])
+                    self.assertFalse(smoke_test.response_matches(kind, 200, shape))
+
+    def test_valid_json_still_requires_normal_completion(self) -> None:
+        content = '{"name":"n","department":"d"}'
+        for kind in ("structured", "structured_object"):
+            for finish_reason in ("length", "content_filter", None):
+                with self.subTest(kind=kind, finish_reason=finish_reason):
+                    shape = self.shape(kind, content, finish_reason)
+                    self.assertTrue(shape["structured_json_valid"])
+                    self.assertFalse(smoke_test.response_matches(kind, 200, shape))
+
+
 class EvidenceAndProfileTest(unittest.TestCase):
     def test_case_record_has_exact_required_schema(self) -> None:
         spec = smoke_test.build_cases()[0]
@@ -938,6 +1020,9 @@ class EvidenceAndProfileTest(unittest.TestCase):
             "rerank_top_n_over_count",
             "vision_direct_ecnu_max",
             "structured_output_ecnu_plus",
+            "structured_output_ecnu_max",
+            "structured_output_json_object_ecnu_plus",
+            "structured_output_json_object_ecnu_max",
             "anthropic_max_1m",
             "anthropic_invalid_effort",
             "tts_xiayu_pcm",

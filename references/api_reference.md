@@ -49,9 +49,12 @@ states that their default validity is 90 days.
 | Image generation | `POST /images/generations` | `ecnu-image` |
 | Text-to-speech | `POST /audio/speech` | `ecnu-tts` |
 | Model list | `GET /models` | N/A |
-| Structured output | `POST /chat/completions` | `ecnu-plus`, `ecnu-turbo` |
+| Structured output | `POST /chat/completions` | `ecnu-plus`, `ecnu-max` |
 | Anthropic messages | full URL above | dialog models and mappings |
 | Embed iFrame | full URL above | N/A |
+
+URL-parameter chat is a browser integration, described separately below, not
+an endpoint under either API root.
 
 ## Chat Completions
 
@@ -114,7 +117,8 @@ text input and verify advanced OpenAI Responses tools or event types before
 depending on them.
 
 For `ecnu-max`, `reasoning.effort` controls thinking intensity. The compatibility
-layer maps its levels to ECNU tiers; `none` disables thinking.
+layer maps `minimal`/`low` to `low`, `medium`/`high`/`xhigh` to `high`, and
+`max` to `max`; `none` disables thinking. `ecnu-plus` ignores this field.
 
 ## Vision
 
@@ -277,8 +281,10 @@ the documented contract here.
 
 ## Structured output
 
-Structured output is documented for `ecnu-plus` and the legacy alias
-`ecnu-turbo`.
+Both `ecnu-plus` and `ecnu-max` support constrained decoding through
+SGLang / XGrammar. `response_format.type` accepts `json_schema` (recommended)
+or `json_object`. For `json_schema`, the nested `name` and `schema` are
+required; the schema may describe an object or an array.
 
 ```json
 {
@@ -298,8 +304,18 @@ Structured output is documented for `ecnu-plus` and the legacy alias
 }
 ```
 
-XGrammar constrains structure, not factual or semantic correctness. Give clear
-instructions and allocate enough `max_tokens` to complete every required field.
+For JSON-object output without a supplied schema, use:
+
+```json
+{"response_format":{"type":"json_object"}}
+```
+
+The current documentation states that constrained output remains raw JSON even
+when a prompt asks for Markdown fences. Parse the original content directly;
+do not strip fences to hide a contract mismatch. Check `finish_reason`, parse
+JSON, and validate the schema when supplied. `json_object` alone does not
+guarantee specific fields. XGrammar constrains structure, not factual or
+semantic correctness. Allocate enough `max_tokens` to complete the output.
 
 ## Anthropic-compatible messages
 
@@ -345,6 +361,23 @@ The documented request uses `client_id`, `client_secret`, `userid`,
 `username`, and `appid`. Returned tickets and URLs are credentials. Do not log
 or persist them. Tickets are one-time use and expire.
 
+## URL-parameter chat
+
+```text
+https://chat.ecnu.edu.cn/html/#/chat?submit={ENCODED_QUERY}
+```
+
+`submit` is a required UTF-8 question string encoded with JavaScript
+`encodeURIComponent`. Opening the link decodes and fills the prompt, creates
+a new ChatECNU conversation, and automatically sends the question once. When
+logged out, the user goes through school SSO and then returns with the question
+preserved for automatic submission.
+
+This is browser navigation, not an API POST or an authenticated iframe ticket.
+Do not put API keys or confidential prompts in a shareable URL. Constructing
+the URL is inert; opening it sends the question, so do not auto-open examples
+as a documentation check.
+
 ## Errors and undocumented limits
 
 | Status | Typical meaning |
@@ -377,5 +410,6 @@ default, model-card value, UI limit, or one-time observation.
 - https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/embediframe.html
+- https://developer.ecnu.edu.cn/vitepress/llm/api/urlchat.html
 - https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - https://developer.ecnu.edu.cn/vitepress/llm/tos.html

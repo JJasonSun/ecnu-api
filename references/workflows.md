@@ -69,6 +69,10 @@ Do not collect the API key or full sensitive prompt.
 | `200` with empty data | do not assume success; validate semantics |
 | timeout or connection drop | mark inconclusive; the server may still have accepted the request |
 
+For quota-related `429` responses, check the shared rolling 7-day allowance in
+[models.md](models.md). A manual reset is an account-owner action in ChatECNU,
+not a documented API operation or an automatic retry strategy.
+
 ### 3. Retry safely
 
 Safe GET requests may use limited exponential backoff with jitter. The live
@@ -214,6 +218,30 @@ The validator retains the first assistant message only in ephemeral run state,
 submits one tool result, then clears that state before writing the sanitized
 structural report.
 
+## Structured-output workflow
+
+After authorization for these low-cost POST probes, check both primary models
+with both documented formats. These cases deliberately request Markdown
+fences in the prompt to test the documented constrained-decoding behavior:
+
+```bash
+python3 scripts/smoke_test.py --profile core --max-credits 0.7 --timeout 60 \
+  --case models_valid \
+  --case structured_output_ecnu_plus \
+  --case structured_output_ecnu_max \
+  --case structured_output_json_object_ecnu_plus \
+  --case structured_output_json_object_ecnu_max \
+  --account-type personal-token \
+  --output .live-artifacts/structured-output.json
+```
+
+Require a normally completed response and directly parse its raw content as
+JSON. The schema cases check the fixture's required string fields and reject
+extra fields; the JSON-object cases check only object structure. Do not repair
+fences or judge factual extraction accuracy as part of the format contract.
+The announced v3.3.0 fix alone is not proof of a live pass; keep old observation
+dates unchanged until the affected behavior has been retested.
+
 ## Embedding workflow
 
 1. Validate `input` as `str` or non-empty `list[str]`.
@@ -293,6 +321,9 @@ A useful report distinguishes:
 
 ```text
 Documented:
+- ...
+
+Upstream background (not an ECNU guarantee):
 - ...
 
 Observed on YYYY-MM-DD:

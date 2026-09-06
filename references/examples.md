@@ -396,6 +396,10 @@ request.
 
 ## Structured output
 
+Both `ecnu-plus` and `ecnu-max` support this `json_schema` request. The
+schema and JSON-object examples here follow the current documentation;
+they are not included in the dated SDK live-verification claim above.
+
 ```python
 import json
 
@@ -433,9 +437,52 @@ completion = client.chat.completions.create(
 
 if not completion.choices or not completion.choices[0].message.content:
     raise RuntimeError("structured response contained no content")
+if completion.choices[0].finish_reason != "stop":
+    raise RuntimeError("structured response did not finish normally")
 result = json.loads(completion.choices[0].message.content)
+if not isinstance(result, dict) or not all(
+    isinstance(result.get(field), str) for field in schema["required"]
+):
+    raise RuntimeError("structured response did not match the extraction schema")
 print(result)
 ```
+
+For JSON-object output without a supplied schema:
+
+```python
+completion = client.chat.completions.create(
+    model="ecnu-max",
+    messages=[{"role": "user", "content": 'Return a JSON object with status "ok".'}],
+    response_format={"type": "json_object"},
+    max_tokens=128,
+)
+if not completion.choices or completion.choices[0].finish_reason != "stop":
+    raise RuntimeError("JSON response did not finish normally")
+content = completion.choices[0].message.content
+if not content:
+    raise RuntimeError("JSON response contained no content")
+result = json.loads(content)
+if not isinstance(result, dict):
+    raise RuntimeError("JSON response was not an object")
+print(result)
+```
+
+Do not strip Markdown fences before parsing. `json_object` does not guarantee
+the `status` field or its value; validate application-specific requirements
+separately. For more complex schemas, use a JSON Schema validator.
+
+## URL-parameter chat
+
+Build a link without navigating to it:
+
+```javascript
+const question = "Hello";
+const url = `https://chat.ecnu.edu.cn/html/#/chat?submit=${encodeURIComponent(question)}`;
+```
+
+Opening `url` creates a new ChatECNU conversation and sends the question once,
+after school SSO if needed. It is not an API call and takes no API key. Avoid
+confidential questions in links that can be stored or shared.
 
 ## Anthropic compatibility
 

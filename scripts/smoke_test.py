@@ -1039,20 +1039,34 @@ def _summarize_anthropic(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _summarize_structured(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _summarize_structured(
+    payload: Mapping[str, Any], *, require_schema: bool = True
+) -> dict[str, Any]:
+    def reject_constant(value: str) -> None:
+        raise ValueError("Non-JSON numeric constant")
+
     result = _summarize_chat(payload)
     content = (_chat_message(payload) or {}).get("content")
     parsed = None
     if isinstance(content, str):
         try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
+            parsed = json.loads(content, parse_constant=reject_constant)
+        except ValueError:
             pass
+    choices = payload.get("choices")
+    first = choices[0] if isinstance(choices, list) and choices else None
+    result.update(
+        {
+            "structured_json_valid": isinstance(parsed, dict),
+            "finish_reason_stop": isinstance(first, dict) and first.get("finish_reason") == "stop",
+        }
+    )
+    if not require_schema:
+        return result
     required = isinstance(parsed, dict) and all(isinstance(parsed.get(key), str) for key in ("name", "department"))
     extras = set(parsed) - {"name", "department"} if isinstance(parsed, dict) else set()
     result.update(
         {
-            "structured_json_valid": isinstance(parsed, dict),
             "required_fields_valid": required,
             "additional_property_count": len(extras),
             "schema_valid": required and not extras,
@@ -1127,8 +1141,8 @@ def summarize_response(kind: str, response: HttpResult, *, secrets: Iterable[str
         return _summarize_embedding(payload)
     if kind == "rerank":
         return _summarize_rerank(payload)
-    if kind == "structured":
-        return _summarize_structured(payload)
+    if kind in {"structured", "structured_object"}:
+        return _summarize_structured(payload, require_schema=kind == "structured")
     if kind in {"anthropic", "anthropic_vision_compat"}:
         result = _summarize_anthropic(payload)
         if kind == "anthropic_vision_compat":
@@ -1171,8 +1185,13 @@ def response_matches(kind: str, status: int | None, shape: Mapping[str, Any]) ->
         )
     if kind in {"vision", "vision_compat"}:
         return bool(shape.get("choice_count")) and bool(shape.get("content_present"))
-    if kind == "structured":
-        return bool(shape.get("choice_count")) and bool(shape.get("schema_valid"))
+    if kind in {"structured", "structured_object"}:
+        return (
+            bool(shape.get("choice_count"))
+            and bool(shape.get("structured_json_valid"))
+            and bool(shape.get("finish_reason_stop"))
+            and (kind == "structured_object" or bool(shape.get("schema_valid")))
+        )
     if kind in {"tool", "thinking_tool"}:
         matches = (
             bool(shape.get("tool_call_count"))
@@ -2183,29 +2202,36 @@ def _vision_structured_error_cases() -> list[CaseSpec]:
                 payload_factory=lambda context, selected=model: _vision_payload(context, selected),
             )
         )
-    structured = {
-        "model": "ecnu-plus",
-        "messages": [{"role": "user", "content": "姓名张三，部门数据科学部。仅按 schema 输出。"}],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {"name": "person", "schema": STRUCTURED_SCHEMA},
-        },
-        "max_tokens": 128,
-    }
-    cases.append(
-        _case(
-            "structured_output_ecnu_plus",
-            ("core",),
-            "OpenAI-compatible",
-            endpoint,
-            "ecnu-plus",
-            structured,
-            "json_schema constrains structure, not semantic correctness.",
-            "structured",
-            (200,),
-            cost=0.15,
-        )
-    )
+    for model in ("ecnu-plus", "ecnu-max"):
+        for format_type in ("json_schema", "json_object"):
+            response_format: dict[str, Any] = {"type": format_type}
+            if format_type == "json_schema":
+                response_format["json_schema"] = {"name": "person", "schema": STRUCTURED_SCHEMA}
+            structured = {
+                "model": model,
+                "messages": [{"role": "user", "content": "姓名张三，部门数据科学部。提取 name 和 department 两个 JSON 字段，必须把 JSON 放在 Markdown 代码块中。"}],
+                "response_format": response_format,
+                "max_tokens": 128,
+            }
+            prefix = "structured_output_" if format_type == "json_schema" else "structured_output_json_object_"
+            cases.append(
+                _case(
+                    prefix + model.replace("-", "_"),
+                    ("core",),
+                    "OpenAI-compatible",
+                    endpoint,
+                    model,
+                    structured,
+                    (
+                        "json_schema returns pure schema-valid JSON despite a Markdown-fence instruction, not guaranteed semantic correctness."
+                        if format_type == "json_schema"
+                        else "json_object returns a pure JSON object despite a Markdown-fence instruction, without a field-schema guarantee."
+                    ),
+                    "structured" if format_type == "json_schema" else "structured_object",
+                    (200,),
+                    cost=0.15 if model == "ecnu-plus" else 0.2,
+                )
+            )
     error_rows = [
         ("error_missing_model", {"messages": [{"role": "user", "content": "test"}]}, (400, 422), "model is required.", "valid"),
         ("error_wrong_messages_type", {"model": "ecnu-plus", "messages": "wrong-type"}, (400, 422), "messages must be an array.", "valid"),

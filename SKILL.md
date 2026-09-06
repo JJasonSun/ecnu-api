@@ -15,7 +15,7 @@ description: >
 Use this skill to turn ECNU API documentation into a safe, verifiable
 integration. The current official ECNU developer documentation is the
 authority for documented contracts. Keep documented facts, live observations,
-application policy, and unverified claims separate.
+upstream model background, application policy, and unverified claims separate.
 
 ## Core rules
 
@@ -48,9 +48,10 @@ sample code.
 ### 2. Load only the relevant reference
 
 - Read [references/api_reference.md](references/api_reference.md) for endpoint
-  roots, request fields, limits, and response shapes.
+  roots, request fields, limits, response shapes, and URL-parameter chat.
 - Read [references/models.md](references/models.md) for model selection,
-  aliases, thinking modes, credits, quotas, and deployment notes.
+  aliases, thinking modes, credits, quotas, deployment notes, and upstream
+  Qwen3.8 / DeepSeek / DSpark background with ECNU-specific boundaries.
 - Read [references/examples.md](references/examples.md) for minimal Python and
   HTTP examples.
 - Read [references/workflows.md](references/workflows.md) for implementation,
@@ -80,9 +81,10 @@ Never append the Anthropic path to the OpenAI-compatible `/v1` base.
 
 | Task | Preferred model |
 |---|---|
-| General text, tools, lower latency | `ecnu-plus` |
+| General text, tools, lower token price | `ecnu-plus` |
 | Complex text or code | `ecnu-max` |
 | Image understanding | `ecnu-plus` |
+| Structured JSON | `ecnu-plus` or `ecnu-max` |
 | Embeddings | `ecnu-embedding-small` |
 | Rerank | `ecnu-rerank` |
 | Image generation | `ecnu-image` |
@@ -126,6 +128,12 @@ names as compatibility aliases.
 - Image URLs expire after 24 hours.
 - TTS input is limited to 4096 characters.
 - TTS speed is 0.25 through 4.0.
+
+#### Structured output
+
+- Both primary dialog models support `json_schema` and `json_object`.
+- Parse raw JSON without removing Markdown fences; check completion and
+  validate the supplied schema. Valid structure does not ensure correct facts.
 
 ### 6. Protect secrets, data, and credits
 
@@ -181,6 +189,8 @@ service's actual debit.
 Label important conclusions as one of:
 
 - **`documented`** — supported by the current official ECNU documentation.
+- **`upstream-background`** — supported by original model cards or papers;
+  not proof of ECNU endpoint capabilities, defaults, or performance.
 - **`observed`** — reproduced against the live service at a stated date.
 - **`application-policy`** — a local safety, cost, or reliability constraint;
   not an ECNU platform guarantee.
@@ -231,6 +241,8 @@ live API evidence.
 - Thinking: https://developer.ecnu.edu.cn/vitepress/llm/thinking.html
 - API index: https://developer.ecnu.edu.cn/vitepress/llm/api/models.html
 - Responses: https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html
+- Structured output: https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html
+- URL chat: https://developer.ecnu.edu.cn/vitepress/llm/api/urlchat.html
 - Quotas: https://developer.ecnu.edu.cn/vitepress/llm/limit.html
 - Errors: https://developer.ecnu.edu.cn/vitepress/llm/error.html
 - Release notes: https://developer.ecnu.edu.cn/vitepress/llm/release.html

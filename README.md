@@ -12,7 +12,9 @@ The skill covers:
 - image generation and text-to-speech
 - structured output
 - Anthropic-compatible API usage
+- URL-parameter ChatECNU links
 - model selection, authentication, quotas, errors, and known service deviations
+- upstream Qwen3.8, DeepSeek, and DSpark context, distinct from ECNU guarantees
 
 ## Install
 
@@ -20,9 +22,15 @@ The skill covers:
 npx skills add JJasonSun/ecnu-api
 ```
 
-Or copy this repository into the skills directory used by an Agent
-Skills-compatible client. Keep the installed directory name as `ecnu-api` so it
-matches the `name` in `SKILL.md`.
+Use the skills CLI to manage installed copies. For an existing global
+installation, update from its upstream source with:
+
+```bash
+npx skills update -g ecnu-api
+```
+
+Maintain this source repository with Git; do not deploy edits by manually
+copying files into an installed skill directory.
 
 Example invocation:
 
@@ -142,6 +150,7 @@ contract matches live behavior.
 ## Maintenance principles
 
 - Official ECNU documentation is the authority for documented contracts.
+- Upstream model cards and papers provide background, not ECNU API guarantees.
 - Runtime observations must include a date and must remain labeled as
   observations.
 - Do not infer unsupported OpenAI or Anthropic fields.
@@ -183,6 +192,7 @@ ECNU developer documentation:
 - https://developer.ecnu.edu.cn/vitepress/llm/api/audio.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html
 - https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html
+- https://developer.ecnu.edu.cn/vitepress/llm/api/urlchat.html
 - https://developer.ecnu.edu.cn/vitepress/llm/tos.html
 
 ## Disclaimer
