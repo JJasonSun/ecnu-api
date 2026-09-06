@@ -138,9 +138,16 @@ Before a real request:
 - use only `ECNU_API_KEY` from the environment; never accept a key through a
   command-line argument;
 - remove secrets and unnecessary personal or confidential data;
-- confirm the user intended to send the supplied content to ECNU;
+- verify that existing conversation authorization covers the account, supplied
+  content, ECNU destination, and planned purpose; ask only if that coverage is
+  missing or materially changes, and preserve any explicit per-action approval;
 - execute requests serially; and
 - never retry a POST after an ambiguous timeout or connection failure.
+
+Reuse authorization within the same approved batch. Track cumulative planned
+and consumed credits against the batch ceiling; do not reset the allowance
+for each request. Missing data authorization blocks only the affected request,
+not independent offline preparation or validation.
 
 If the full plan exceeds 50 credits, preserve the core dialog, embedding,
 rerank, compatibility, and error checks; prefer one TTS PCM check; run at most

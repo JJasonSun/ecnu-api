@@ -108,13 +108,21 @@ requests, explicit timeouts, no POST retry, and a credit ceiling.
 
 Before opt-in POST probes:
 
-1. confirm the account owner authorized testing;
-2. confirm expected credit use;
+1. verify that existing account-owner authorization covers this test batch,
+   its data, ECNU destination, and purpose; ask only for missing or materially
+   changed coverage, preserving any explicit per-action approval;
+2. verify the approved credit ceiling and cumulative expected batch use;
+   retain the default 50-credit ceiling and require separate authorization
+   before exceeding it, without resetting the allowance per request;
 3. minimize prompts and output tokens;
 4. remove personal or confidential data;
 5. set an explicit timeout;
 6. avoid parallel execution;
 7. write only a sanitized structural report.
+
+The same approved batch does not require repeated confirmation. A pending
+authorization blocks the affected live request; continue independent offline
+preparation and checks within the existing scope.
 
 Create reports only under the ignored artifact directory. Model discovery and
 the documented `401` expectations are non-billable:
