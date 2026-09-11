@@ -91,8 +91,12 @@ SDK.
 may be restricted in thinking mode.
 
 If a tool was called during a thinking-mode conversation, retain the returned
-`reasoning_content` in subsequent turns when required by the model. Do not
-expose hidden reasoning to end users merely because a response field exists.
+assistant `reasoning_content` in subsequent history, including later user
+turns. Do not discard it after the first tool result. Keep it out of logs and
+user-facing output; see [Agent development](agent_development.md).
+Keep the complete original message. The
+[live reasoning-field observation](known_deviations.md#max-thinking-response-fields)
+records a deployment difference without changing this documented contract.
 
 A non-streaming response follows the OpenAI completion-list shape with
 `choices[].message`, `finish_reason`, and `usage`. For streaming, parse SSE
@@ -122,7 +126,9 @@ layer maps `minimal`/`low` to `low`, `medium`/`high`/`xhigh` to `high`, and
 
 ## Vision
 
-Use Chat Completions with `ecnu-plus`:
+Both `ecnu-plus` and `ecnu-max` support Chat Completions image input according
+to the current model and endpoint pages. This lower-cost example uses
+`ecnu-plus`:
 
 ```json
 {
@@ -145,6 +151,10 @@ Use Chat Completions with `ecnu-plus`:
 `image_url.url` may be a public URL or a base64 data URL. The API page does not
 publish a maximum image count, byte size, pixel size, or MIME-type matrix.
 Do not reuse a web-UI upload limit as an API contract.
+
+The direct `ecnu-max` failure recorded on 2026-08-23 predates its V4.1 upgrade.
+Do not apply that historical limitation to the current documented contract.
+Responses and Anthropic image handling still need protocol-specific validation.
 
 ## Embeddings
 

@@ -88,9 +88,14 @@ answer = message.content or ""
 print(answer)
 ```
 
-Do not print or persist hidden reasoning. Keep `reasoning_content` only in
-memory when it is required for the immediately following tool-using turn, then
-discard it.
+Do not print or persist hidden reasoning. For assistant messages that call
+tools in thinking mode, retain `reasoning_content` in memory throughout the
+continuing conversation, including later user turns. Discard it when the
+conversation ends, not just after the first tool result. See
+[Agent development](agent_development.md) for the complete tool exchange.
+Preserve the complete returned message and consult the
+[reasoning-field observation](known_deviations.md#max-thinking-response-fields)
+when `reasoning_content` is absent; do not invent the missing field.
 
 ## Streaming
 
@@ -146,6 +151,9 @@ The caller must execute the function and submit the tool result in a subsequent
 turn.
 
 ## Vision
+
+Both primary models document image input through Chat Completions. This
+example uses `ecnu-plus`; `ecnu-max` is also a documented option.
 
 ```python
 completion = client.chat.completions.create(
@@ -560,7 +568,7 @@ import re
 
 SENSITIVE_KEYS = {
     "authorization", "x_api_key", "api_key", "auth_token", "token",
-    "access_token", "client_secret", "ticket", "reasoning_content",
+    "access_token", "client_secret", "ticket", "reasoning_content", "reasoning",
     "messages", "input", "prompt", "content", "url", "download_url",
     "image_url", "b64_json", "base64", "audio", "data",
 }

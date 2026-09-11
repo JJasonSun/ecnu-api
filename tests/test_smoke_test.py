@@ -57,13 +57,15 @@ class RedactionTest(unittest.TestCase):
 
     def test_reasoning_is_presence_and_length_only(self) -> None:
         reasoning = "private hidden reasoning"
-        sanitized = smoke_test.sanitize_value(
-            {"reasoning_content": reasoning, "content": "bounded error"}
-        )
-        self.assertNotIn("reasoning_content", sanitized)
-        self.assertTrue(sanitized["reasoning_content_present"])
-        self.assertEqual(sanitized["reasoning_content_length"], len(reasoning))
-        self.assertNotIn(reasoning, json.dumps(sanitized))
+        for field in ("reasoning_content", "reasoning"):
+            with self.subTest(field=field):
+                sanitized = smoke_test.sanitize_value(
+                    {field: reasoning, "content": "bounded error"}
+                )
+                self.assertNotIn(field, sanitized)
+                self.assertTrue(sanitized[field + "_present"])
+                self.assertEqual(sanitized[field + "_length"], len(reasoning))
+                self.assertNotIn(reasoning, json.dumps(sanitized))
 
     def test_allowlisted_headers_exclude_auth_and_cookies(self) -> None:
         headers = smoke_test.extract_important_headers(
@@ -838,20 +840,42 @@ class PreflightMatcherTest(unittest.TestCase):
         ):
             self.assertFalse(smoke_test.case_response_matches(spec, 200, invalid))
 
-    def test_direct_plus_vision_requires_image_understanding(self) -> None:
-        spec = self.case("vision_direct_ecnu_plus")
-        base = {"choice_count": 1, "content_present": True}
-        self.assertFalse(smoke_test.case_response_matches(spec, 200, base))
-        self.assertFalse(
-            smoke_test.case_response_matches(
-                spec, 200, {**base, "vision_behavior": "ignore-image"}
-            )
-        )
-        self.assertTrue(
-            smoke_test.case_response_matches(
-                spec, 200, {**base, "vision_behavior": "accept"}
-            )
-        )
+    def test_direct_vision_requires_image_understanding_for_both_models(self) -> None:
+        for model in ("ecnu-plus", "ecnu-max"):
+            spec = self.case("vision_direct_" + model.replace("-", "_"))
+            for status, content, finish_reason, expected in (
+                (200, "A red square.", "stop", "pass"),
+                (200, "A red square.", "length", "mismatch"),
+                (200, "A red square.", "content_filter", "mismatch"),
+                (200, "A red square.", None, "mismatch"),
+                (200, "A red square.", ["stop"], "mismatch"),
+                (200, "A red square.", {"reason": "stop"}, "mismatch"),
+                (200, "I cannot inspect images.", "stop", "mismatch"),
+                (200, "", "stop", "mismatch"),
+                (422, "Images are unsupported.", None, "mismatch"),
+            ):
+                with self.subTest(model=model, status=status, content=content):
+                    payload = (
+                        {"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]}
+                        if status == 200 else {"detail": content}
+                    )
+                    response = smoke_test.HttpResult(
+                        status,
+                        {"content-type": "application/json"},
+                        json.dumps(payload).encode(),
+                    )
+                    with smoke_test.temporary_artifacts() as directory:
+                        context = smoke_test.RunContext(
+                            "test-key", 1.0, directory, smoke_test.CreditBudget(1.0)
+                        )
+                        with patch.object(
+                            smoke_test, "raw_executor",
+                            return_value=smoke_test.Execution(response, "mock"),
+                        ):
+                            record = smoke_test.run_one(context, spec)
+                    self.assertEqual(record["result"], expected)
+                    if finish_reason == "length":
+                        self.assertEqual(record["actual_response_shape"]["vision_behavior"], "truncated")
 
 
 class StructuredOutputTest(unittest.TestCase):

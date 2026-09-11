@@ -5,7 +5,8 @@ description: >
   (East China Normal University) LLM Open Platform at chat.ecnu.edu.cn.
   Use for OpenAI-compatible Chat Completions and Responses APIs, multimodal
   input, embeddings, rerank, image generation, text-to-speech, structured
-  output, model discovery, Anthropic-compatible clients, authentication,
+  output, model discovery, Agent development, prompt design,
+  Anthropic-compatible clients, authentication,
   credits, quotas, and API errors. Do not use for general ECNU information
   or unrelated DeepSeek and Qwen questions.
 ---
@@ -52,6 +53,8 @@ sample code.
 - Read [references/models.md](references/models.md) for model selection,
   aliases, thinking modes, credits, quotas, deployment notes, and upstream
   Qwen3.8 / DeepSeek / DSpark background with ECNU-specific boundaries.
+- Read [references/agent_development.md](references/agent_development.md) for
+  model-specific Agent design, prompt templates, tools, context, and evaluation.
 - Read [references/examples.md](references/examples.md) for minimal Python and
   HTTP examples.
 - Read [references/workflows.md](references/workflows.md) for implementation,
@@ -83,7 +86,7 @@ Never append the Anthropic path to the OpenAI-compatible `/v1` base.
 |---|---|
 | General text, tools, lower token price | `ecnu-plus` |
 | Complex text or code | `ecnu-max` |
-| Image understanding | `ecnu-plus` |
+| Image understanding | `ecnu-plus`; `ecnu-max` for complex visual reasoning |
 | Structured JSON | `ecnu-plus` or `ecnu-max` |
 | Embeddings | `ecnu-embedding-small` |
 | Rerank | `ecnu-rerank` |
@@ -117,7 +120,8 @@ names as compatibility aliases.
 #### Vision
 
 - Use Chat Completions with structured `text` and `image_url` content parts.
-- Use `ecnu-plus`.
+- Both `ecnu-plus` and `ecnu-max` now document image understanding. Verify each
+  protocol separately; the older `ecnu-max` failure is historical evidence.
 - A public URL or base64 data URL may be used.
 - Do not convert a ChatECNU web-UI upload limit into an API limit.
 

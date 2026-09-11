@@ -1,6 +1,6 @@
 # ECNU Models, Credits, and Quotas
 
-Model and quota documentation and upstream background were checked on 2026-09-06.
+Model and quota documentation and upstream background were checked on 2026-09-12.
 Verify time-sensitive values against the official model and quota pages before
 a production decision. This check is not a live API test.
 
@@ -19,16 +19,17 @@ they do not override ECNU's hosted request fields, defaults, limits, or prices.
 
 | Model | Underlying model | Published context | Thinking | Tools | Vision |
 |---|---|---|---|---|---|
-| `ecnu-max` | DeepSeek-V4-Flash-0731 | 1M | Supported, default off | Yes | No |
+| `ecnu-max` | DeepSeek-V4.1-Flash | 1M | Supported, default off | Yes | Yes |
 | `ecnu-plus` | Qwen3.8-27B | 256K | Supported, default off | Yes | Yes |
 
 The model table does not label `1M` and `256K` as tokens or characters. Preserve
 the published figures without adding a unit. The Anthropic page separately
 describes `ecnu-max[1m]` as a 1M-character compatibility signal.
 
-Use `ecnu-plus` for image understanding. Consider `ecnu-max` for complex text
-and code when task quality justifies its higher token price; measure latency
-on the deployed service rather than inferring it from the model name.
+Both models support image understanding through Chat Completions. Start with
+`ecnu-plus` for lower-cost tasks; evaluate `ecnu-max` for complex text, code,
+or visual reasoning. Measure task success and latency on ECNU. See
+[Agent development](agent_development.md) for prompt and tool design.
 
 ## Upstream model background
 
@@ -55,19 +56,25 @@ These are tuning starting points, not ECNU defaults. Do not copy upstream
 `top_k`, `min_p`, or other undocumented controls into ECNU requests; sampling
 controls may be restricted in ECNU thinking mode.
 
-### DeepSeek-V4-Flash-0731 behind `ecnu-max`
+### DeepSeek-V4.1-Flash behind `ecnu-max`
 
-The [DeepSeek model card](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731)
-identifies 0731 as the official Flash release replacing the preview, with
-enhanced agentic capabilities and an attached speculative-decoding module.
-It is not V4-Pro; other DeepSeek models' capabilities do not establish vision
-support for `ecnu-max`, which ECNU documents as text-only.
+The [DeepSeek model card](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
+describes a multimodal MoE model with image and text input, text output, and
+one-million-token context. Its Causal Encoder-Decoder architecture reduces
+active computation during prefill, and its cache compression targets long,
+input-heavy workloads. These are architectural motivations, not ECNU latency
+or memory guarantees.
 
-Upstream effort levels are `low`, `high`, and `max`. Keep ECNU's explicit
-thinking switch and protocol-specific effort mappings below. DeepSeek's local
-deployment advice uses `temperature=1.0`, with `top_p=0.95` for agent tasks
-and `1.0` otherwise. Its 384K-token output-budget recommendation for high/max
-is not an ECNU `max_tokens` limit or a suitable default for credit-bounded tests.
+| Upstream behavior | ECNU integration boundary |
+|---|---|
+| Continuous `reasoning_effort` from 1 to 100 | ECNU still documents `low`, `high`, `max`; do not send integers or invent a mapping |
+| Agent benchmarks use `temperature=1.0`, `top_p=0.95` | Tuning candidates only; ECNU thinking mode may restrict sampling controls |
+| Local inference recommends at least 256K output tokens | Not an ECNU output limit or an application default; budget each task |
+| Custom prompt encoding and `deepseek-recipe` adapters | ECNU accepts structured API messages; do not inject upstream control tokens |
+
+The current ECNU model and Chat Completions pages both document vision. See
+[dated live coverage](known_deviations.md#verified-coverage-on-2026-09-12)
+for the tested image and protocol scope.
 
 ### DSpark inference acceleration
 
@@ -79,8 +86,8 @@ blocks, and the target model verifies them, with confidence- and load-aware
 verification scheduling. This is server-side decoding acceleration, not a
 client-side instruction to reduce reasoning effort.
 
-The 0731 model card configures DSpark through vLLM or SGLang server launch
-options. ECNU documents no request-level DSpark switch, new model ID, or
+DSpark is configured by the serving stack. ECNU documents no request-level
+DSpark switch, new model ID, or
 numerical speed guarantee. Keep using `ecnu-max`; do not invent `dspark: true`.
 Gains depend on draft acceptance, workload, hardware, and serving load. The
 paper's DeepSeek-serving benchmarks are not measurements of ECNU. When latency
@@ -163,9 +170,13 @@ Anthropic-compatible requests use `output_config.effort`:
 Responses-compatible requests use `reasoning.effort` with the same
 compatibility mapping.
 
-In tool-using multi-turn thinking conversations, preserve the assistant's
-`reasoning_content` when the service requires it for continuation. Do not show
-hidden reasoning to end users.
+For thinking-mode assistant messages that call tools, ECNU requires retaining
+`reasoning_content` in subsequent conversation history, including later user
+turns. Keep it in process memory with the assistant/tool exchange; do not log
+it or expose it to end users. See [Agent development](agent_development.md).
+Returned reasoning fields may differ from the documented name; consult the
+[live observation](known_deviations.md#max-thinking-response-fields) before
+treating an absent `reasoning_content` field as proof that thinking was disabled.
 
 ## Shared credits quotas
 
@@ -176,11 +187,10 @@ The current official quota page documents these defaults for personal tokens:
 | Rolling 7 days | 20000 credits |
 
 All of a user's personal tokens share this pool. Only consumption within the
-last 7 days counts; this is not a calendar-week reset. The account owner can
-manually reset the quota at any time from ChatECNU's left-side **开放平台**
-entry, immediately restoring the full allowance. No quota-reset API is
-documented. Do not automate a reset or treat it as authorization to increase
-an application's approved spending ceiling.
+last 7 days counts; this is not a calendar-week reset. ChatECNU's left-side
+**开放平台** entry shows the balance and window usage. There is no manual
+quota-reset feature. When exhausted, reduce usage, wait for consumption to
+leave the rolling window, or contact the platform about a suitable quota pool.
 
 Minute-level quota enforcement was reported as removed, but abnormal
 high-frequency traffic may still trigger service protection. Recheck the quota
@@ -236,7 +246,8 @@ the intended use and data-handling basis are appropriate.
 
 | Date | Change |
 |---|---|
-| 2026-08-31 | v3.3.0: Qwen3.8-27B for `ecnu-plus`; DSpark for `ecnu-max`; rolling 7-day 20000-credit quota and manual reset; dual-model structured-output fix; URL chat integration |
+| 2026-09-12 documentation check | Current pages list DeepSeek-V4.1-Flash and image input for `ecnu-max`; exact rollout date is not stated |
+| 2026-08-31 | v3.3.0: Qwen3.8-27B for `ecnu-plus`; DSpark for `ecnu-max`; rolling 7-day 20000-credit quota; dual-model structured-output fix; URL chat integration |
 | 2026-08-10 | Reasoning-effort controls and compatibility mappings |
 | 2026-08-09 | Security and developer-agreement documentation update |
 | 2026-08-03 | TTS upgraded to Fun-CosyVoice3-0.5B; additional voices |

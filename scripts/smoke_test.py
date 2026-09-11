@@ -303,9 +303,9 @@ def sanitize_value(value: Any, secrets: Iterable[str] = ()) -> Any:
                 "ticket",
             }:
                 result[text_key] = "[REDACTED]"
-            elif lowered == "reasoning_content":
-                result["reasoning_content_present"] = item is not None
-                result["reasoning_content_length"] = _content_length(item)
+            elif lowered in {"reasoning_content", "reasoning"}:
+                result[lowered + "_present"] = item is not None
+                result[lowered + "_length"] = _content_length(item)
             elif lowered in {
                 "messages",
                 "input",
@@ -854,6 +854,8 @@ def _text_length(value: Any) -> int:
 
 def _summarize_chat(payload: Mapping[str, Any]) -> dict[str, Any]:
     choices = payload.get("choices")
+    first = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+    finish_reason = first.get("finish_reason")
     message = _chat_message(payload) or {}
     content = message.get("content")
     reasoning = message.get("reasoning_content")
@@ -877,6 +879,7 @@ def _summarize_chat(payload: Mapping[str, Any]) -> dict[str, Any]:
         "valid_json": True,
         "top_level_keys": sorted(payload.keys()),
         "choice_count": len(choices) if isinstance(choices, list) else 0,
+        "finish_reason": finish_reason if finish_reason in ("stop", "length", "tool_calls", "content_filter", "function_call") else None,
         "model": _safe_model_label(payload.get("model")),
         "content_present": isinstance(content, str) and bool(content),
         "content_length": _text_length(content),
@@ -1128,7 +1131,10 @@ def summarize_response(kind: str, response: HttpResult, *, secrets: Iterable[str
         return _summarize_chat(payload)
     if kind in {"vision", "vision_compat"}:
         result = _summarize_chat(payload)
-        result["vision_behavior"] = _vision_behavior(payload, kind == "vision_compat")
+        result["vision_behavior"] = (
+            "truncated" if result["finish_reason"] == "length"
+            else _vision_behavior(payload, kind == "vision_compat")
+        )
         return result
     if kind in {"responses", "responses_vision_compat"}:
         result = _summarize_responses(payload)
@@ -1184,7 +1190,11 @@ def response_matches(kind: str, status: int | None, shape: Mapping[str, Any]) ->
             and bool(shape.get("usage_keys"))
         )
     if kind in {"vision", "vision_compat"}:
-        return bool(shape.get("choice_count")) and bool(shape.get("content_present"))
+        return (
+            bool(shape.get("choice_count"))
+            and bool(shape.get("content_present"))
+            and shape.get("finish_reason") == "stop"
+        )
     if kind in {"structured", "structured_object"}:
         return (
             bool(shape.get("choice_count"))
@@ -1387,7 +1397,7 @@ def case_response_matches(
         )
     if spec.case_id == "tts_xiayu_pcm":
         return bool(shape.get("pcm_headers_complete"))
-    if spec.case_id == "vision_direct_ecnu_plus":
+    if spec.response_kind == "vision":
         return shape.get("vision_behavior") == "accept"
     if spec.case_id in {
         "responses_max_vision_compatibility",
@@ -1790,7 +1800,7 @@ def _vision_payload(context: RunContext, model: str) -> dict[str, Any]:
                 ],
             }
         ],
-        "max_tokens": 32,
+        "max_tokens": 128,
     }
 
 
@@ -2180,9 +2190,9 @@ def _vision_structured_error_cases() -> list[CaseSpec]:
                 ],
             }
         ],
-        "max_tokens": 32,
+        "max_tokens": 128,
     }
-    for model, statuses in (("ecnu-plus", (200,)), ("ecnu-max", (400, 422))):
+    for model in ("ecnu-plus", "ecnu-max"):
         cases.append(
             _case(
                 "vision_direct_" + model.replace("-", "_"),
@@ -2191,13 +2201,9 @@ def _vision_structured_error_cases() -> list[CaseSpec]:
                 endpoint,
                 model,
                 {**representative_vision, "model": model},
-                (
-                    "ecnu-plus accepts structured text and image_url data parts."
-                    if model == "ecnu-plus"
-                    else "ecnu-max does not support direct Chat Completions vision."
-                ),
+                f"{model} accepts structured text and image_url data parts.",
                 "vision",
-                statuses,
+                (200,),
                 cost=0.1 if model == "ecnu-plus" else 0.25,
                 payload_factory=lambda context, selected=model: _vision_payload(context, selected),
             )

@@ -15,6 +15,7 @@ The skill covers:
 - URL-parameter ChatECNU links
 - model selection, authentication, quotas, errors, and known service deviations
 - upstream Qwen3.8, DeepSeek, and DSpark context, distinct from ECNU guarantees
+- Agent prompt templates, tool continuation, context management, and evaluation
 
 ## Install
 
@@ -47,6 +48,7 @@ ecnu-api/
 ├── references/
 │   ├── api_reference.md
 │   ├── models.md
+│   ├── agent_development.md
 │   ├── examples.md
 │   ├── workflows.md
 │   └── known_deviations.md
@@ -62,6 +64,11 @@ ecnu-api/
 `SKILL.md` contains the core workflow and tells an agent when to load each
 focused reference. Live observations are isolated from documented contracts in
 `references/known_deviations.md`.
+
+For Agent development, start with
+[model-specific prompt and tool guidance](references/agent_development.md).
+It covers ECNU's differences from upstream DeepSeek-V4.1 and Qwen3.8,
+reusable task prompts, thinking/tool history, and checks for actual task success.
 
 ## Configure a key safely
 

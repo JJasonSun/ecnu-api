@@ -9,7 +9,7 @@ The repository content is the skill; there is no production application.
 
 - `SKILL.md` is the concise task entry point.
 - `references/api_reference.md` contains documented endpoint contracts.
-- `references/models.md` contains models, aliases, credits, and quotas.
+- Model selection and Agent design: `references/models.md` and `references/agent_development.md`.
 - `references/examples.md` contains minimal safe examples.
 - `references/workflows.md` contains executable integration and test flows.
 - `references/known_deviations.md` contains dated live observations only.
@@ -34,7 +34,7 @@ Run before committing:
 python3 scripts/validate_skill.py
 python3 -m unittest discover -s tests -v
 python3 -m compileall scripts tests
-uvx --from skills-ref agentskills validate .
+uvx --from skills-ref agentskills validate "$PWD"
 ```
 
 Review `git diff --check` and scan tracked content for secrets and personal paths.

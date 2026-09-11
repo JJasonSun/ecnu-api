@@ -9,6 +9,13 @@ Test environment `live-2026-08-23-a` was a personal token on macOS arm64
 langchain-openai 0.3.35, httpx 0.28.1, direct HTTP where noted, and UTC report
 timestamps. No private input or generated content was retained.
 
+Test environment `live-2026-09-12-a` used the account owner's test token,
+macOS arm64, Python 3.9.6, and direct standard-library HTTP through the smoke
+runner. The date is Asia/Shanghai; sanitized reports use UTC timestamps.
+Requests were serial with no POST retries and a cumulative 50-credit ceiling.
+Only synthetic text and PNG inputs were used. Prompts, generated content,
+reasoning text, and credentials were not retained in reports.
+
 ## Invalid bearer on model discovery
 
 - **Tested at:** 2026-08-23
@@ -179,15 +186,39 @@ timestamps. No private input or generated content was retained.
 
 ## Direct `ecnu-max` image input
 
-- **Tested at:** 2026-08-23
-- **Environment:** live-2026-08-23-a, direct HTTP
+- **Tested at:** 2026-09-12; previous failure on 2026-08-23
+- **Environment:** live-2026-09-12-a, direct HTTP; historical live-2026-08-23-a
 - **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
-- **Documented expectation:** `ecnu-max` does not support vision; use `ecnu-plus`.
-- **Observed behavior:** A tiny PNG data URL sent directly to `ecnu-max` returned plain-text `500`; the `ecnu-plus` control returned `200` and recognized the image.
-- **Reproduction conditions:** Send the same synthetic red-square image to each primary model.
-- **Impact:** Direct unsupported vision fails without a structured validation body.
-- **Recommended fallback:** Route all image understanding to `ecnu-plus` before sending.
+- **Documented expectation:** Current model and Chat Completions pages support image input on both primary models. The August contract did not support it on `ecnu-max`.
+- **Observed behavior:** Both models returned `200`, ended normally, and recognized a synthetic red square. The earlier max plain-text `500` is historical. A plus probe limited to 32 output tokens was truncated; a separate 128-token probe completed and recognized the image.
+- **Reproduction conditions:** Send the same tiny PNG data URL to each model with `max_tokens: 128`; require a normal completion and correct visible content.
+- **Impact:** The old max failure no longer reproduces for this fixture. Too little output budget can make a vision check inconclusive or misleading.
+- **Recommended fallback:** Budget complete output and validate image-grounded behavior; this simple fixture does not establish OCR or complex visual reasoning quality.
+- **Status:** resolved
+
+## Max thinking response fields
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-a, direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
+- **Documented expectation:** Enabled thinking exposes `reasoning_content`; thinking tool history retains that field. Max accepts `low`, `high`, and `max` effort.
+- **Observed behavior:** All three effort values returned `200` with reported reasoning-token usage, but those replies and a tool-call reply lacked `reasoning_content`. A later complex max tool reply included a separate `reasoning` key; its content was not inspected or retained. Preserving the complete actual message allowed the tool continuation and a later user turn to succeed. A separate max coding fixture did return `reasoning_content`, so field exposure varied across replies.
+- **Reproduction conditions:** Enable thinking, submit a short task with each documented effort, then run a bounded echo tool exchange and a later user turn with the original messages preserved. Record field presence and usage counters only.
+- **Impact:** Requiring one field name can block a working tool loop. Its absence does not prove thinking was disabled; this run does not establish the tiers' relative quality or latency.
+- **Recommended fallback:** Preserve the complete returned assistant message in memory; retain `reasoning_content` when supplied and never fabricate it when absent. Redact both `reasoning_content` and `reasoning` from diagnostics. Validate SDK and framework continuation separately.
 - **Status:** active
+
+## Initial max Chat timeout
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-a, direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
+- **Documented expectation:** A valid short request produces a completion; no latency guarantee was assumed.
+- **Observed behavior:** The initial max basic request exceeded its 45-second client timeout with no HTTP response. It was not retried. Subsequent independent max fixtures completed successfully.
+- **Reproduction conditions:** One minimal non-thinking max request with a 45-second timeout; the timeout itself has not been reproduced.
+- **Impact:** Completion and debit for that request remain unknown. A single timeout does not establish a service-wide outage.
+- **Recommended fallback:** Keep the attempt inconclusive, inspect available status or request records, and avoid blindly repeating a possibly billed POST.
+- **Status:** inconclusive
 
 ## Thinking-tool continuation without reasoning content
 
@@ -226,6 +257,47 @@ fallback, and SDK use; and image stripping in the Responses and Anthropic
 compatibility layers. Successful Chat responses may expose backend model labels,
 while Anthropic alias responses may echo the requested alias; neither label alone
 proves or disproves internal routing.
+
+## Verified coverage on 2026-09-12
+
+The targeted update made 30 requests: 24 passed their checks, five differed
+from expectations, and one timed out. The five mismatches were the four
+canonical reasoning-field checks described above and the truncated plus image
+probe. The latter was followed by a normally completed image check with more
+output room; the timeout was not retried.
+
+Successful coverage included:
+
+- Both primary models recognized the actual synthetic image and returned valid
+  `json_schema` and `json_object` output.
+- Max image input also worked through the Responses and Anthropic endpoints
+  for this fixture. This remains observed compatibility, not a documented
+  general image-input contract for those protocols.
+- The exact system prompt in `agent_development.md` completed an echo tool
+  exchange and a later user turn on both models. Plus retained canonical
+  reasoning content; max retained all actual returned fields. A separate max
+  non-thinking tool exchange also passed.
+- Both models extracted the requested fields while ignoring conflicting
+  instructions inside one synthetic untrusted source. One success is not a
+  prompt-injection resistance guarantee.
+- Both models used the exact coding prompt template plus a supplied small
+  Python fixture to propose a fix. A restricted in-memory check verified empty,
+  ordinary, zero, and empty-string inputs. Plus used thinking off; max used low.
+  This is a small prompt check, not a repository-level coding benchmark.
+- A constrained arithmetic task with max effort returned the expected answer
+  and reported reasoning-token usage; visible reasoning was not a pass criterion.
+
+The cumulative reserved estimate was 37.74 credits, within the 50-credit
+ceiling. Usage-based estimated consumption was 3.49058 credits, including the
+runner's reservation fallback for the timeout; this is not a verified debit.
+No live SDK, streaming, long-context, media-generation, embedding, or rerank
+revalidation was performed in this update. Older observations retain their
+original dates.
+
+Response model metadata included `qwen3.6-plus`, `deepseek-v4-flash`, and
+`deepseek-flash`, differing from the current model page's labels. These values
+alone do not establish the deployed model identity or contradict its documented
+routing; do not silently replace the documented model table with them.
 
 ## Update rules
 

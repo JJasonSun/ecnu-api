@@ -29,7 +29,7 @@ Check:
 - documented JSON types;
 - no OpenAI token-ID input for ECNU embeddings;
 - no undocumented embedding dimension request;
-- `ecnu-plus` for image understanding;
+- either primary model for Chat Completions image understanding;
 - explicit timeout;
 - SDK retries disabled with `max_retries=0` for live probes;
 - bounded error-body capture;
@@ -70,8 +70,8 @@ Do not collect the API key or full sensitive prompt.
 | timeout or connection drop | mark inconclusive; the server may still have accepted the request |
 
 For quota-related `429` responses, check the shared rolling 7-day allowance in
-[models.md](models.md). A manual reset is an account-owner action in ChatECNU,
-not a documented API operation or an automatic retry strategy.
+[models.md](models.md). There is no manual quota reset. Reduce usage, wait for
+older consumption to leave the window, or contact the platform for quota needs.
 
 ### 3. Retry safely
 
@@ -200,10 +200,12 @@ with an empty `data` array does not prove authentication.
 
 ## Thinking-and-tool workflow
 
-Thinking tool calls are a two-turn protocol. The second request must splice the
-returned assistant message, including its `reasoning_content`, immediately
-before the tool result. Keep that assistant message in process memory only;
-never print it or write it to the report, and clear it after the second turn.
+A tool step spans two requests. Append the returned assistant message, including
+its `reasoning_content`, before the matching tool result. Preserve that exchange
+in subsequent history, including later user turns. Keep reasoning in process
+memory only; never print it or write it to a report. Clear it when the whole
+conversation ends. The isolated probe below ends after its second request;
+an ongoing Agent conversation does not. See [Agent development](agent_development.md).
 
 ```bash
 python3 scripts/smoke_test.py --profile core --max-credits 1.2 --timeout 60 \
@@ -217,6 +219,12 @@ python3 scripts/smoke_test.py --profile core --max-credits 1.2 --timeout 60 \
 The validator retains the first assistant message only in ephemeral run state,
 submits one tool result, then clears that state before writing the sanitized
 structural report.
+
+This probe checks the documented `reasoning_content` field strictly. If it
+differs from the current response, consult the
+[live field observation](known_deviations.md#max-thinking-response-fields)
+and validate continuation with the complete actual message; a mismatch alone
+does not mean that thinking or tool use is unavailable.
 
 ## Structured-output workflow
 
