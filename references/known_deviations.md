@@ -16,16 +16,22 @@ Requests were serial with no POST retries and a cumulative 50-credit ceiling.
 Only synthetic text and PNG inputs were used. Prompts, generated content,
 reasoning text, and credentials were not retained in reports.
 
+Test environment `live-2026-09-12-b` checked the PR #3 recipes with the same
+macOS/Python environment, OpenAI 2.48.0, Anthropic 0.125.0,
+langchain-openai 0.3.35, and httpx 0.28.1. Requests used synthetic text,
+60-second timeouts, no retries, and the same cumulative 50-credit ceiling.
+Only response structure, field-preservation checks, and usage were retained.
+
 ## Invalid bearer on model discovery
 
-- **Tested at:** 2026-08-23
-- **Environment:** live-2026-08-23-a, direct HTTP
+- **Tested at:** 2026-08-23; reproduced 2026-09-12
+- **Environment:** live-2026-08-23-a, direct HTTP; live-2026-09-12-b, HTTPX
 - **Protocol and endpoint:** OpenAI-compatible `GET /models`
 - **Documented expectation:** Missing or invalid authentication returns `401`.
 - **Observed behavior:** An obviously invalid bearer returned `200` JSON with an empty model list.
 - **Reproduction conditions:** Send `GET /models` with a non-secret invalid bearer value.
 - **Impact:** An empty list can be mistaken for authenticated discovery.
-- **Recommended fallback:** Require a non-empty valid-token list; do not use an empty list as an auth check.
+- **Recommended fallback:** Treat discovery as model visibility, not authentication proof; check authenticated access with a protected documented endpoint.
 - **Status:** active
 
 ## Missing authorization on model discovery
@@ -260,7 +266,7 @@ proves or disproves internal routing.
 
 ## Verified coverage on 2026-09-12
 
-The targeted update made 30 requests: 24 passed their checks, five differed
+Environment `live-2026-09-12-a` made 30 requests: 24 passed their checks, five differed
 from expectations, and one timed out. The five mismatches were the four
 canonical reasoning-field checks described above and the truncated plus image
 probe. The latter was followed by a normally completed image check with more
@@ -298,6 +304,28 @@ Response model metadata included `qwen3.6-plus`, `deepseek-v4-flash`, and
 `deepseek-flash`, differing from the current model page's labels. These values
 alone do not establish the deployed model identity or contradict its documented
 routing; do not silently replace the documented model table with them.
+
+## Verified recipe coverage on 2026-09-12
+
+Environment `live-2026-09-12-b` made eight requests: six POSTs and two GETs.
+Seven passed their checks; the invalid-bearer GET reproduced the `200` empty-list
+deviation above. Every request had exactly one transport attempt.
+
+- The exact Python Chat and Anthropic SDK snippets returned normally completed text.
+- The LangChain snippet sent both original strings, omitted `dimensions`, and
+  included the SDK's automatic `encoding_format="base64"`. The service accepted
+  this request and returned two 1024-value vectors.
+- Max thinking at `low` returned an echo tool call with `reasoning_content`.
+  The SDK recipe's dictionary equaled the original response message. The tool
+  result and later user turn both preserved that original message on the wire
+  and returned the expected value with normal completion.
+
+This batch's usage-based estimate was 0.43764 credits under the
+[current pricing formula](https://developer.ecnu.edu.cn/vitepress/llm/limit.html).
+The cumulative reservation, including earlier checks, was 44.29 credits;
+estimated cumulative consumption was 3.92822 credits. Neither is verified
+account debit. This targeted run does not revalidate other historical cases,
+other SDK versions, streaming, or arbitrary framework adapters.
 
 ## Update rules
 

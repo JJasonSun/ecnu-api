@@ -8,8 +8,9 @@ the [official page](api_reference.md).
 The executable examples below make real requests when run. Use the project's
 existing environment and dependencies; do not install or run them for a
 code-only request. Live execution follows the authorization and budget boundary
-in the skill. Rewritten snippets are not new live-verification evidence;
-[dated observations](known_deviations.md) retain their original scope and dates.
+in the skill. Checked versions and scope are recorded in the
+[dated recipe coverage](known_deviations.md#verified-recipe-coverage-on-2026-09-12);
+an example edit alone does not refresh that evidence.
 
 ## LangChain embeddings
 
