@@ -16,7 +16,7 @@ These instructions apply to maintaining this repository, not consuming apps.
 - `references/known_deviations.md`: dated live evidence; preserve dates and scope.
 - `references/agent_development.md`: historical guidance cited by old observations.
 - `scripts/` and `tests/`: existing diagnostics and offline validation.
-- `docs/skill-refactor-plan.md`: scope, local handoff, and acceptance checks.
+- `docs/skill-refactor-plan.md`: refactor scope and acceptance evidence.
 
 ## Editing rules
 

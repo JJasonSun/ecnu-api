@@ -42,7 +42,7 @@ credentials should not prevent the Agent from writing or reviewing code.
 | Diagnose a failure or select a live probe | [Targeted diagnosis](references/workflows.md) |
 | Inspect dated evidence | [Known deviations](references/known_deviations.md) |
 | Maintain this repository | [AGENTS.md](AGENTS.md) |
-| Continue this simplification locally | [Implementation and handoff plan](docs/skill-refactor-plan.md) |
+| Inspect the refactor's acceptance evidence | [Acceptance record](docs/skill-refactor-plan.md) |
 
 The older [Agent-development notes](references/agent_development.md) remain to
 preserve historical prompt-fixture references in the observation log. They are

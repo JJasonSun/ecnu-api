@@ -1,8 +1,9 @@
 # Known Service Deviations
 
-These entries are point-in-time observations, not official contracts. Preserve
-the documented expectation in `api_reference.md`. Do not change a test date or
-status unless the behavior was actually exercised again.
+These entries are point-in-time observations, not official contracts. Keep each
+entry's documented expectation separate from its observed result; current
+contracts are linked from [api_reference.md](api_reference.md). Do not change a
+test date or status unless the behavior was actually exercised again.
 
 Test environment `live-2026-08-23-a` was a personal token on macOS arm64
 (Darwin 25.6.0), Python 3.9.6, OpenAI 2.48.0, Anthropic 0.125.0,
@@ -338,5 +339,5 @@ other SDK versions, streaming, or arbitrary framework adapters.
    announced fix as a revalidation trigger, not as resolution evidence.
 6. Recheck the current contract and pricing, then rerun only the affected cases
    with the current runner before changing dates, expectations, or statuses.
-7. Require new account-owner authorization for billable revalidation; never
+7. Require scoped account-owner authorization for billable revalidation; never
    schedule TTS or image-generation probes automatically.
