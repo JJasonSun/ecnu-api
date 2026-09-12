@@ -54,7 +54,8 @@ Its full messages URL ends in `/open/api/anthropic/v1/messages`.
 | Task | Next resource |
 |---|---|
 | Chat, streaming, vision, Responses, JSON, rerank, images, TTS, or browser integration | [Official endpoint map](references/api_reference.md): open only the matching page |
-| LangChain embeddings or Anthropic SDK setup | [Integration recipes](references/examples.md): read the matching section |
+| LangChain embeddings | [Embedding recipe](references/examples.md#langchain-embeddings) |
+| Anthropic SDK setup | [Anthropic recipe](references/examples.md#anthropic-sdk) |
 | Thinking and tool continuation | [Tool-history recipe](references/examples.md#thinking-and-tool-history) plus the linked ECNU contract |
 | Model choice, prices, quotas, or deployment questions | [Model and account pointers](references/models.md) |
 | An error, unexpected result, or requested live check | [Targeted diagnosis](references/workflows.md); consult only the matching dated deviation |

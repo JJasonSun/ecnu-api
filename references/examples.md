@@ -79,10 +79,20 @@ for call_id, result_text in tool_results:
 # Do not print or persist reasoning_content, reasoning, or private tool output.
 ```
 
+For an OpenAI SDK Chat Completions response, first obtain `assistant_message`
+for the fragment above:
+
+```python
+assistant_message = response.choices[0].message.model_dump(
+    mode="json", exclude_unset=True
+)
+```
+
+This retains returned extension fields without adding absent optional fields.
 Only execute complete, validated tool arguments, not partial streamed JSON.
-For SDKs/frameworks, check that serialization retains the fields needed for
-continuation; do not blindly convert Responses or Anthropic blocks into Chat
-roles. An endpoint smoke pass is not proof that a framework adapter works.
+For other SDKs/frameworks, check their serialization; do not blindly convert
+Responses or Anthropic blocks into Chat roles. An endpoint smoke pass is not
+proof that a framework adapter works.
 
 ## Anthropic SDK
 
