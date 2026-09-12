@@ -1,7 +1,9 @@
 # Agent Development with ECNU Models
 
-Use this reference for prompt design, tool loops, multimodal tasks, and Agent
-evaluation. Sources were checked on 2026-09-12; this is not a live benchmark.
+This historical reference preserves the prompt fixtures used in the
+[2026-09-12 checks](known_deviations.md#verified-coverage-on-2026-09-12).
+For current integration work, start with [SKILL.md](../SKILL.md).
+Sources below were checked on 2026-09-12; this is not a current benchmark.
 Model facts and protocol rules are linked from [models.md](models.md) and
 [api_reference.md](api_reference.md). The design advice and prompt examples
 below are **`application-policy`**: starting points to evaluate on your tasks.
