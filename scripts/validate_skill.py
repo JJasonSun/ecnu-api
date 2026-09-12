@@ -32,7 +32,6 @@ LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 SECRET_RE = re.compile(
     r"(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}(?![A-Za-z0-9_-])"
 )
-DIMENSION_ASSIGNMENT_RE = re.compile(r"\bdimensions\s*=\s*1024\b")
 AUTH_BEARER_RE = re.compile(
     r"(?i)\bauthorization\b[\"']?\s*:\s*(?:[frbu]{0,2}[\"'])?"
     r"bearer\s+([^\s\"'`]+)"
@@ -308,8 +307,6 @@ def collect_errors(root: Path = ROOT) -> list[str]:
             continue
         if SECRET_RE.search(content):
             errors.append(f"possible committed API key in {relative}")
-        if DIMENSION_ASSIGNMENT_RE.search(content):
-            errors.append(f"undocumented LangChain dimension request in {relative}")
         for line in find_literal_bearers(content):
             errors.append(f"literal Authorization bearer value in {relative}:{line}")
         if relative != Path("AGENTS.md"):

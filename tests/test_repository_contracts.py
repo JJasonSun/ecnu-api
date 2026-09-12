@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -99,6 +100,22 @@ class RepositoryValidatorHelpersTest(unittest.TestCase):
 
 
 class CurrentRepositoryContractsTest(unittest.TestCase):
+    def test_documentation_can_quote_embedding_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "ecnu-api"
+            shutil.copytree(
+                ROOT, root,
+                ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".live-artifacts"),
+            )
+            examples = root / "references/examples.md"
+            examples.write_text(
+                examples.read_text(encoding="utf-8")
+                + "\nThe official example uses `dimensions=1024`; acceptance is unverified.\n"
+                + "Do not send `dimensions=1024` in this recipe.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(validate_skill.collect_errors(root), [])
+
     def test_openai_tool_recipe_preserves_returned_fields(self) -> None:
         import httpx
         from openai import OpenAI
