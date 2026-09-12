@@ -2,49 +2,43 @@
 
 ## Purpose
 
-This repository is an Agent Skills package for the ECNU LLM Open Platform API.
-The repository content is the skill; there is no production application.
+This is an Agent Skills package, not a production application.
+Optimize for less repeated setup, lookup, and troubleshooting work.
+These instructions apply to maintaining this repository, not consuming apps.
 
 ## File routing
 
-- `SKILL.md` is the concise task entry point.
-- `references/api_reference.md` contains documented endpoint contracts.
-- Model selection and Agent design: `references/models.md` and `references/agent_development.md`.
-- `references/examples.md` contains minimal safe examples.
-- `references/workflows.md` contains executable integration and test flows.
-- `references/known_deviations.md` contains dated live observations only.
-- `scripts/smoke_test.py` performs opt-in live structural checks.
-- `scripts/validate_skill.py` and `tests/` provide offline validation.
+- `SKILL.md`: small integration entry point and task routing.
+- `references/api_reference.md`: official endpoint links, not copied field tables.
+- `references/models.md`: selection defaults and current account-source pointers.
+- `references/examples.md`: ECNU-specific integration recipes.
+- `references/workflows.md`: symptom-driven, opt-in diagnostics.
+- `references/known_deviations.md`: dated live evidence; preserve dates and scope.
+- `references/agent_development.md`: historical guidance cited by old observations.
+- `scripts/` and `tests/`: existing diagnostics and offline validation.
+- `docs/skill-refactor-plan.md`: scope, local handoff, and acceptance checks.
 
 ## Editing rules
 
-- Treat current official ECNU documentation as the documented contract.
-- Keep documented facts, live observations, application policy, and unverified
-  claims distinct.
-- Do not invent undocumented fields, limits, model capabilities, or prices.
-- Put point-in-time behavior only in `known_deviations.md` with dated evidence.
-- Keep examples sequential, timeout-bounded, and environment-key based.
-- Maintain this repository with Git; update the deployed skill via `npx skills update -g ecnu-api`, never by manually copying it.
+- Prefer current official contracts; keep observed differences separately dated.
+- Add content only when it saves a concrete lookup, decision, mistake, or repeated action.
+- Keep everyday integration separate from platform audits and repository maintenance.
+- Do not invent API limits or copy upstream model defaults into ECNU requests.
+- Do not refresh a test date or label a snippet live-verified without a real test.
+- Update installed copies via `npx skills update -g ecnu-api`, not manual copying.
 
 ## Validation
-
-Run before committing:
 
 ```bash
 python3 scripts/validate_skill.py
 python3 -m unittest discover -s tests -v
 python3 -m compileall scripts tests
 uvx --from skills-ref agentskills validate "$PWD"
+git diff --check
 ```
 
-Review `git diff --check` and scan tracked content for secrets and personal paths.
-
-## Safety
-
-- Read live credentials only from `ECNU_API_KEY`; never accept a CLI key.
-- Never commit keys, Authorization values, private inputs, raw responses,
-  generated media, one-time URLs, or full reasoning content.
-- Keep API calls serial and enforce the declared credit ceiling.
-- Do not automatically retry POST requests after ambiguous transport failures.
-- Record only sanitized response structure and allowlisted diagnostic headers.
-- Do not update an observation date unless the behavior was reproduced.
+Report unavailable checks as not run. Review tracked changes for secrets.
+Live checks use only `ECNU_API_KEY`, serial requests, no ambiguous POST retry,
+and an approved cumulative budget. Never commit private inputs, reasoning,
+credentials, generated media, one-time URLs, or raw responses. Keep sanitized
+live artifacts under the ignored `.live-artifacts/` directory.
