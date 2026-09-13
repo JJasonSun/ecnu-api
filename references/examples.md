@@ -57,6 +57,21 @@ thinking through `thinking.type`; direct `reasoning_effort` uses `low`, `high`,
 or `max` on `ecnu-max` and is ignored by `ecnu-plus`. Pass ECNU extensions through
 `extra_body` with the OpenAI SDK. Do not substitute upstream template switches.
 
+Two observed behaviors refine this contract:
+
+- The alias `ecnu-reasoner` activates thinking server-side; a bare request with
+  no `thinking` parameter still returns non-zero reasoning tokens. Use it when
+  you want always-on thinking without managing the parameter. See
+  [alias default thinking](known_deviations.md#ecnu-reasoner-alias-default-thinking).
+- On `ecnu-max`, sending `reasoning_effort` alone (without `thinking`) is
+  sufficient to activate thinking, contrary to the documented gating. The
+  `thinking` parameter remains optional. See
+  [effort as trigger](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger).
+
+Restrict `reasoning_effort` to `low`, `high`, `xhigh`, and `max`. The values
+`minimal` and `medium` return intermittent HTTP 500; `xhigh` is undocumented
+but stable. See [unavailable tiers](known_deviations.md#unavailable-reasoning-effort-tiers).
+
 For a tool exchange, append the complete actual assistant message before the
 matching tool results. ECNU documents preserving `reasoning_content` for
 thinking-mode tool calls through subsequent user turns. Keep it only in process

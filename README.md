@@ -38,6 +38,7 @@ credentials should not prevent the Agent from writing or reviewing code.
 | Start a normal integration | [SKILL.md](SKILL.md) |
 | Find the relevant official endpoint contract | [Endpoint map](references/api_reference.md) |
 | LangChain embeddings, thinking/tool history, Anthropic SDK | [Integration recipes](references/examples.md) |
+| WorkBuddy desktop custom-model setup | [WorkBuddy recipe](references/workbuddy_setup.md) |
 | Model choice or current account facts | [Model/account pointers](references/models.md) |
 | Diagnose a failure or select a live probe | [Targeted diagnosis](references/workflows.md) |
 | Inspect dated evidence | [Known deviations](references/known_deviations.md) |

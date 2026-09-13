@@ -12,6 +12,7 @@ These instructions apply to maintaining this repository, not consuming apps.
 - `references/api_reference.md`: official endpoint links, not copied field tables.
 - `references/models.md`: selection defaults and current account-source pointers.
 - `references/examples.md`: ECNU-specific integration recipes.
+- `references/workbuddy_setup.md`: WorkBuddy desktop custom-model configuration recipe.
 - `references/workflows.md`: symptom-driven, opt-in diagnostics.
 - `references/known_deviations.md`: dated live evidence; preserve dates and scope.
 - `references/agent_development.md`: historical guidance cited by old observations.
