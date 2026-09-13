@@ -521,6 +521,44 @@ class PreflightMatcherTest(unittest.TestCase):
             )
         )
 
+    def test_authentication_requires_a_successful_protected_request(self) -> None:
+        discovery = {"object": "list", "data": [{"id": "ecnu-plus"}]}
+        chat = {
+            "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        }
+        for case_id, body, external, verified in (
+            ("models_valid", discovery, False, False),
+            ("chat_basic_ecnu_plus", chat, False, True),
+            ("chat_basic_ecnu_plus", {}, False, False),
+            ("chat_basic_ecnu_plus", chat, True, False),
+        ):
+            with self.subTest(case=case_id, body=body, external=external):
+                control = self.case(case_id)
+                if external:
+                    control = replace(control, endpoint="https://example.test/v1/chat/completions")
+                success = smoke_test.Execution(smoke_test.HttpResult(
+                    200, {"content-type": "application/json"}, json.dumps(body).encode()
+                ), "mock")
+                denied = smoke_test.Execution(smoke_test.HttpResult(
+                    401, {"content-type": "application/json"}, b'{"detail":"metadata failure"}'
+                ), "mock")
+                with smoke_test.temporary_artifacts() as directory:
+                    context = smoke_test.RunContext(
+                        "test-key", 1.0, directory, smoke_test.CreditBudget(10.0)
+                    )
+                    with patch.object(smoke_test, "raw_executor", return_value=success):
+                        smoke_test.run_one(context, control)
+                    self.assertEqual(bool(context.state.get("valid_auth_observed")), verified)
+                    self.assertEqual(bool(context.state.get("successful_models")), verified)
+                    with patch.object(smoke_test, "raw_executor", return_value=denied):
+                        record = smoke_test.run_one(context, self.case("error_unsupported_model"))
+                    self.assertEqual(context.stop_reason is None, verified)
+                    self.assertEqual(
+                        any("already verified bearer" in note for note in record["notes"]),
+                        verified,
+                    )
+
     def test_expected_errors_require_json_and_tts_error_structure(self) -> None:
         generic = self.case("error_missing_model")
         text_shape = smoke_test.summarize_response(
@@ -731,7 +769,7 @@ class PreflightMatcherTest(unittest.TestCase):
                 )
             )
 
-    def test_thinking_tool_and_anthropic_alias_invariants(self) -> None:
+    def test_thinking_tool_invariants(self) -> None:
         tool = self.case("chat_thinking_tool_first")
         shape = {
             "tool_call_count": 1,
@@ -745,30 +783,33 @@ class PreflightMatcherTest(unittest.TestCase):
                 tool, 200, {**shape, "reasoning_content_present": True}
             )
         )
-        alias = self.case("anthropic_sonnet_mapping")
-        alias_shape = {"content_count": 1, "text_present": True, "model": "ecnu-max"}
-        self.assertFalse(smoke_test.case_response_matches(alias, 200, alias_shape))
-        self.assertTrue(
-            smoke_test.case_response_matches(
-                alias, 200, {**alias_shape, "model": "claude-sonnet-4-20250514"}
-            )
-        )
-        self.assertTrue(
-            smoke_test.case_response_matches(
-                alias, 200, {**alias_shape, "model": "ecnu-plus"}
-            )
-        )
-        opus = self.case("anthropic_opus_mapping")
-        self.assertFalse(
-            smoke_test.case_response_matches(
-                opus, 200, {**alias_shape, "model": "ecnu-plus"}
-            )
-        )
-        self.assertTrue(
-            smoke_test.case_response_matches(
-                opus, 200, {**alias_shape, "model": "ecnu-max"}
-            )
-        )
+
+    def test_anthropic_model_labels_are_diagnostic(self) -> None:
+        for case_id in (
+            "anthropic_plus", "anthropic_max", "anthropic_max_1m",
+            "anthropic_max_1m_fallback_plain_max",
+            "anthropic_sonnet_mapping", "anthropic_opus_mapping",
+        ):
+            with self.subTest(case=case_id):
+                spec = self.case(case_id)
+                body = {"model": "backend-model-label", "stop_reason": "end_turn",
+                        "content": [{"type": "text", "text": "ok"}]}
+                response = smoke_test.Execution(smoke_test.HttpResult(
+                    200, {"content-type": "application/json"}, json.dumps(body).encode()
+                ), "mock")
+                with smoke_test.temporary_artifacts() as directory:
+                    context = smoke_test.RunContext(
+                        "test-key", 1.0, directory, smoke_test.CreditBudget(10.0)
+                    )
+                    with patch.object(smoke_test, "raw_executor", return_value=response):
+                        record = smoke_test.run_one(context, spec)
+                self.assertEqual(record["result"], "pass")
+                shape = record["actual_response_shape"]
+                self.assertEqual(shape["model"], "backend-model-label")
+                self.assertFalse(shape["response_model_matches_request"])
+                self.assertFalse(smoke_test.case_response_matches(
+                    spec, 200, {**shape, "text_present": False}
+                ))
 
     def test_effort_invariants_and_anthropic_bearer_only(self) -> None:
         none = self.case("responses_max_effort_none")

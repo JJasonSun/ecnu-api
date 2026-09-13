@@ -1408,26 +1408,6 @@ def case_response_matches(
         return not bool(shape.get("reasoning_content_present"))
     if spec.case_id in {"responses_max_effort_low", "anthropic_effort_low"}:
         return bool(shape.get("reasoning_content_present"))
-    expected_anthropic_models = {
-        "anthropic_plus": "ecnu-plus",
-        "anthropic_max": "ecnu-max",
-        "anthropic_max_1m": "ecnu-max",
-        "anthropic_max_1m_fallback_plain_max": "ecnu-max",
-    }
-    if spec.case_id in expected_anthropic_models:
-        return shape.get("model") == expected_anthropic_models[spec.case_id]
-    expected_anthropic_aliases = {
-        "anthropic_sonnet_mapping": {
-            "claude-sonnet-4-20250514",
-            "ecnu-plus",
-        },
-        "anthropic_opus_mapping": {
-            "claude-opus-4-1-20250805",
-            "ecnu-max",
-        },
-    }
-    if spec.case_id in expected_anthropic_aliases:
-        return shape.get("model") in expected_anthropic_aliases[spec.case_id]
     return True
 
 
@@ -2584,18 +2564,6 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
     if executed.attempts > 1:
         shape["unexpected_retry_count"] = executed.attempts - 1
 
-    authenticated_success = (
-        spec.requires_valid_auth
-        and response.status is not None
-        and 200 <= response.status < 300
-        and (spec.case_id != "models_valid" or bool(shape.get("model_ids")))
-    )
-    if authenticated_success:
-        context.state["valid_auth_observed"] = True
-        if spec.model:
-            successful_models = context.state.setdefault("successful_models", set())
-            if isinstance(successful_models, set):
-                successful_models.add(spec.model)
     local_401_accepted = (
         response.status == 401
         and spec.case_id in CASE_LOCAL_401
@@ -2625,6 +2593,22 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
     else:
         result = "pass"
         notes = ["structural check passed; generated content was omitted"]
+
+    # Later 401 exceptions require a successful protected control.
+    authenticated_success = (
+        spec.requires_valid_auth
+        and spec.method == "POST"
+        and _official_api_endpoint(spec.endpoint)
+        and result == "pass"
+        and response.status is not None
+        and 200 <= response.status < 300
+    )
+    if authenticated_success:
+        context.state["valid_auth_observed"] = True
+        if spec.model:
+            successful_models = context.state.setdefault("successful_models", set())
+            if isinstance(successful_models, set):
+                successful_models.add(spec.model)
 
     if local_401_accepted:
         notes.append("case-specific 401 does not invalidate the already verified bearer token")

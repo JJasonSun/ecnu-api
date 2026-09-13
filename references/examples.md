@@ -16,9 +16,11 @@ an example edit alone does not refresh that evidence.
 
 The [ECNU embedding contract](https://developer.ecnu.edu.cn/vitepress/llm/api/embedding.html)
 accepts strings, not OpenAI token-ID arrays. Disable LangChain's token conversion.
-Validate the returned length instead of sending a dimension-selection field:
-the direct endpoint contract documents `model` and `input`, and a 1024-value
-output, not selectable dimensions. Reject an empty list before making a call.
+The official LangChain example sets `dimensions` to 1024, but the request table
+lists only `model` and `input` and does not explain dimension selection.
+This recipe omits `dimensions` and validates the documented 1024-value output,
+following the dated recipe coverage above. That check does not establish whether
+the service accepts or rejects the field. Reject an empty list before making a call.
 
 Standalone example; requires `langchain-openai`:
 
