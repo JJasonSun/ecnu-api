@@ -27,6 +27,16 @@ Upstream model cards can explain model design, but do not establish ECNU's
 request fields, thinking defaults, context units, output limits, performance,
 or deployment path. Do not copy upstream serving flags into requests.
 
+For thinking mode, the alias `ecnu-reasoner` activates thinking server-side
+without a client-side `thinking` parameter
+([observed](known_deviations.md#ecnu-reasoner-alias-default-thinking)).
+On `ecnu-max`, `reasoning_effort` alone triggers thinking, contrary to the
+documented gating
+([observed](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger)).
+Restrict `reasoning_effort` to `low`, `high`, `xhigh`, and `max`; `minimal`
+and `medium` are unreliable
+([observed](known_deviations.md#unavailable-reasoning-effort-tiers)).
+
 For a cost calculation, fetch current prices and show the input/output and
 cache assumptions. Do not assume a cache-hit ratio or treat estimated usage as
 verified account debit. A code-only task does not require a cost calculation.
