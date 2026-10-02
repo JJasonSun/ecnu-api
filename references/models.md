@@ -17,6 +17,34 @@ a measured quality or latency ranking.
 | What changed and when | [Release notes](https://developer.ecnu.edu.cn/vitepress/llm/release.html) |
 | Is there a reported incident? | [Service status](https://chat.ecnu.edu.cn/status) |
 
+## Select the capability, not just a new model name
+
+The [2026-09-30 release](https://developer.ecnu.edu.cn/vitepress/llm/release.html)
+added multimodal retrieval and image editing. Contract checked 2026-10-02;
+these are documented capabilities, not new live-test results.
+
+| Model | Backend in the current model page | Integration choice |
+|---|---|---|
+| `ecnu-embedding-small` | bge-m3 | Keep for existing text-only, 1024-dimensional indexes |
+| `ecnu-embedding-vl` | Qwen3-VL-Embedding-8B | Text, one image per item, or both; default 4096 dimensions, optional 1024/2048/4096 |
+| `ecnu-rerank` | bge-reranker-v2-m3 | Text query and text candidates |
+| `ecnu-rerank-vl` | Qwen3-VL-Reranker-8B | Text/image query and candidates; rerank an already retrieved candidate set |
+| `ecnu-image` | qwen-image-2.1 | Generate from text or edit one existing image; different request formats and prompt handling |
+
+Use the [retrieval and image recipes](examples.md) for the differences that
+affect requests. Equal vector dimensions do not imply compatible embedding
+spaces: changing embedding models requires re-embedding the indexed items and
+using that same model and dimensions for queries. A reranker can change without
+replacing stored vectors; its relevance scores are not scientific or educational
+quality judgments and should not be compared across models.
+
+For image understanding, the current model page specifies `ecnu-plus`.
+`ecnu-max` currently uses DeepSeek-V4-Flash-0731 and is text-only; older
+DeepSeek-V4.1 and successful vision observations are historical, not current
+capability guarantees. Keep stable ECNU aliases in requests and recheck backend
+labels before displaying them. Do not relabel old generated assets as output
+from a newly announced backend.
+
 ## ECNU-specific boundaries
 
 Use primary ECNU model names for new integrations rather than upstream names
