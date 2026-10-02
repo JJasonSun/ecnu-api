@@ -55,6 +55,12 @@ Upstream model cards can explain model design, but do not establish ECNU's
 request fields, thinking defaults, context units, output limits, performance,
 or deployment path. Do not copy upstream serving flags into requests.
 
+For thinking controls, follow the [current recipe](examples.md#thinking-and-tool-history).
+The [2026-09-12 effort observations](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger)
+are scoped to that deployment; they are not current cross-model defaults.
+The [WorkBuddy recipe](workbuddy_setup.md) covers clients that cannot send the
+explicit thinking switch.
+
 For a cost calculation, fetch current prices and show the input/output and
 cache assumptions. Do not assume a cache-hit ratio or treat estimated usage as
 verified account debit. A code-only task does not require a cost calculation.

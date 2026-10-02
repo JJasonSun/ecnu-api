@@ -172,6 +172,15 @@ when thinking is enabled; thinking defaults to off. Pass ECNU extensions through
 `extra_body` with the OpenAI SDK. Do not substitute upstream template switches
 or silently map an unsupported tier between models.
 
+For clients that cannot send `thinking`, the documented compatibility alias
+`ecnu-reasoner` defaults to enabled thinking on `ecnu-max`; see the
+[WorkBuddy recipe](workbuddy_setup.md) for one client-specific setup.
+
+The 2026-09-12 observations of [effort-only activation](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger)
+and [extra max effort tiers](known_deviations.md#unavailable-reasoning-effort-tiers)
+remain historical evidence. They do not override the current contract above or
+justify rejecting `medium` on `ecnu-plus`.
+
 For a tool exchange, append the complete actual assistant message before the
 matching tool results. ECNU documents preserving `reasoning_content` for
 thinking-mode tool calls through subsequent user turns. Keep it only in process

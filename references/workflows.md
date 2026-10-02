@@ -18,8 +18,12 @@ These links are dated observations, not claims that the issue still reproduces.
 | Missing auth produces an unexpected error | Preserve actual status and body type: [missing authorization](known_deviations.md#missing-authorization-on-model-discovery) |
 | A new model ID appears but fails | Discovery is not endpoint capability: [runtime-only model](known_deviations.md#undocumented-model-visible-at-runtime) |
 | `401` only for an unsupported model or `[1m]` | Compare a documented working control; do not rotate keys blindly: [unsupported model](known_deviations.md#unsupported-chat-model-error), [suffix conditions](known_deviations.md#anthropic-long-context-suffix-metadata) |
+| `401` with `获取第三方元数据失败` under rapid requests | Compare the dated spacing observation; the error alone does not identify the cause: [rapid-request 401](known_deviations.md#rapid-request-401-metadata-failure) |
 | SDK works for chat but embeddings fail | Check raw strings and local validation: [embedding recipe](examples.md#langchain-embeddings) |
 | Tool continuation loses state or reasoning fields | Preserve the actual message and inspect serialization: [recipe](examples.md#thinking-and-tool-history), [field variation](known_deviations.md#max-thinking-response-fields) |
+| `reasoning_content` is absent but thinking seems active | Check `usage.completion_tokens_details.reasoning_tokens`, not `message.reasoning_content`: [field variation](known_deviations.md#max-thinking-response-fields), [alias default thinking](known_deviations.md#ecnu-reasoner-alias-default-thinking) |
+| `ecnu-max` thinking will not activate | Send the documented explicit switch; [effort-only activation](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger) was observed in September, not revalidated for the current backend |
+| An effort tier fails | Use the chosen model's [documented tiers](examples.md#thinking-and-tool-history); the [September max observation](known_deviations.md#unavailable-reasoning-effort-tiers) does not apply to plus |
 | TTS error parsing crashes | Tolerate non-JSON errors: [invalid voice](known_deviations.md#invalid-tts-voice-error-shape) |
 | PCM bytes arrive without format metadata | Configure the format explicitly: [missing headers](known_deviations.md#successful-tts-response-headers) |
 | Old max-vision success conflicts with current docs | Current max is text-only; the [September 12 fixture](known_deviations.md#direct-ecnu-max-image-input) predates the September 18 contract change |

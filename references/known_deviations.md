@@ -23,6 +23,17 @@ langchain-openai 0.3.35, and httpx 0.28.1. Requests used synthetic text,
 60-second timeouts, no retries, and the same cumulative 50-credit ceiling.
 Only response structure, field-preservation checks, and usage were retained.
 
+Test environment `live-2026-09-12-c` used the account owner's personal tokens
+(two distinct keys), Windows x64, Node.js 24.14.1 `fetch` direct HTTP, and
+Asia/Shanghai local dates 2026-09-12 through 2026-09-14, during an
+owner-authorized interactive integration session rather than the smoke runner.
+Reliability runs were serial with roughly four-second spacing; unspaced bursts
+are called out per entry. Repeated attempts in those runs were deliberate
+characterization samples, not uncertainty retries, and credit consumption was
+not metered against the runner's ceiling. Only synthetic arithmetic and
+vision-fixture inputs were used. Prompts, generated content, reasoning text,
+and credentials were not retained.
+
 ## Invalid bearer on model discovery
 
 - **Tested at:** 2026-08-23; reproduced 2026-09-12
@@ -332,6 +343,101 @@ The cumulative reservation, including earlier checks, was 44.29 credits;
 estimated cumulative consumption was 3.92822 credits. Neither is verified
 account debit. This targeted run does not revalidate other historical cases,
 other SDK versions, streaming, or arbitrary framework adapters.
+
+## ecnu-reasoner alias default thinking
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
+- **Documented expectation:** The alias `ecnu-reasoner` equals `ecnu-max` with `thinking: {"type": "enabled"}`; a client must send the `thinking` parameter to activate thinking on `ecnu-max` itself.
+- **Observed behavior:** A bare `ecnu-reasoner` request with no `thinking` field returned `200` and a non-zero `usage.completion_tokens_details.reasoning_tokens` count (range 18-198 across samples). A matching bare `ecnu-max` control returned `reasoning_tokens: 0`. The alias activates thinking server-side without any client-side `thinking` parameter.
+- **Reproduction conditions:** Send two otherwise identical minimal requests, one with `model: "ecnu-reasoner"` and one with `model: "ecnu-max"`, both omitting `thinking`; compare `usage.completion_tokens_details.reasoning_tokens`.
+- **Impact:** A client that relies on sending `thinking` to detect whether reasoning is active will misclassify `ecnu-reasoner` responses. The absence of `message.reasoning_content` is not a reliable thinking indicator either (see the prior "Max thinking response fields" entry).
+- **Recommended fallback:** Detect active thinking via `usage.completion_tokens_details.reasoning_tokens`, not via `message.reasoning_content` or the presence of a client-side `thinking` parameter. Treat `ecnu-reasoner` as always-thinking for routing decisions.
+- **Status:** active
+
+## ecnu-max reasoning_effort as thinking trigger
+
+**Current-contract note (2026-10-02):** The [thinking page](https://developer.ecnu.edu.cn/vitepress/llm/thinking.html)
+still requires explicit `thinking` on `ecnu-max`. The observation below has
+not been rerun against the current deployment; use the documented switch for
+new integrations. Its original test date and status are retained.
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
+- **Documented expectation:** The thinking page states that `reasoning_effort` only takes effect when thinking mode is enabled via `thinking: {"type": "enabled"}`; without it, `reasoning_effort` is ignored.
+- **Observed behavior:** `ecnu-max` requests with `reasoning_effort` set but no `thinking` field returned `200` with non-zero `usage.completion_tokens_details.reasoning_tokens`. Dose-response was clean across `low` (median ~117), `high` (~155), and `max` (~343). Adding `thinking: {"type": "enabled"}` alongside `reasoning_effort` did not increase the token count beyond the same-effort baseline.
+- **Reproduction conditions:** Send `ecnu-max` requests with `reasoning_effort` set to `low`, `high`, and `max` but omit `thinking`; record `usage.completion_tokens_details.reasoning_tokens` for each.
+- **Impact:** Clients following the documented precondition may unnecessarily send a `thinking` parameter, or may wrongly conclude thinking is off when only `reasoning_effort` is sent. The documented gating did not match the sampled deployment.
+- **Recommended fallback:** Send the documented explicit `thinking` switch for `ecnu-max`; do not rely on this dated effort-only behavior. For a client that cannot send the switch, the documented `ecnu-reasoner` alias defaults to enabled thinking.
+- **Status:** active
+
+## Unavailable reasoning effort tiers
+
+**Current-contract note (2026-10-02):** Current documented tiers are
+`low` / `high` / `max` for `ecnu-max` and `low` / `medium` / `xhigh` for
+`ecnu-plus`. The September observation below covers max only and has not
+been rerun; it does not make `medium` invalid on plus or `xhigh` a supported
+max default. Its original test date and status are retained.
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
+- **Documented expectation:** The thinking page lists `low`, `high`, and `max` as the three supported `reasoning_effort` values for `ecnu-max`.
+- **Observed behavior:** `minimal` returned HTTP 500 on 5 of 7 attempts; `medium` returned HTTP 500 on 7 of 9 attempts. Both occasionally succeeded but cannot be relied on. `xhigh`, although absent from the documentation, returned `200` on all attempts with a reasoning-token median (~178) between `high` and `max`. `low`, `high`, and `max` were stable across all samples.
+- **Reproduction conditions:** Send `ecnu-max` requests with each of `minimal`, `medium`, `xhigh`, `low`, `high`, and `max` as `reasoning_effort`; use serial requests with roughly four-second spacing to separate this check from the rapid-request error observation below.
+- **Impact:** A client that sends `minimal` or `medium` (for example, via an SDK default or a UI selector that does not filter values) will hit intermittent 500 errors. `xhigh` is a usable but undocumented tier.
+- **Recommended fallback:** Use each model's current documented tiers, not the extra tiers accepted by this historical deployment. Reject an unsupported value locally rather than silently remapping it to a different effort.
+- **Status:** active
+
+## Rapid-request 401 metadata failure
+
+- **Tested at:** 2026-09-12
+- **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
+- **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions` and `GET /models`
+- **Documented expectation:** `401` indicates an authentication failure; the official guidance only advises avoiding parallel calls.
+- **Observed behavior:** Rapid sequential requests (under roughly one second apart) to either endpoint returned `401` with `{"detail": "获取第三方元数据失败"}` even though the same bearer passed spaced requests. Spacing requests by roughly four seconds eliminated the failures. The error shape is identical to the unsupported-model case above, making them indistinguishable without a working control.
+- **Reproduction conditions:** Send the same valid bearer to the same documented model in a tight loop (sub-second spacing); then repeat with four-second spacing.
+- **Impact:** A client may mistake this spacing-correlated error for a credential failure and trigger unnecessary key rotation. These observations do not establish a server-side rate-limit cause or whether rejected requests were billed.
+- **Recommended fallback:** Inspect the complete error and chosen model first. If the request was explicitly rejected and a live check is authorized, one spaced control request can test whether the error persists. Do not automatically repeat a possibly accepted POST after a timeout or dropped connection, or rotate keys from this error shape alone.
+- **Status:** active
+
+## Verified coverage on 2026-09-12 through 2026-09-14
+
+**Current-contract note (2026-10-02):** This is historical coverage, not a
+current capability test. The model page now specifies max as text-only with
+512K context; use plus for image understanding and the current per-model
+thinking tiers. No live revalidation was performed for this note.
+
+Environment `live-2026-09-12-c` made characterization requests across two
+personal tokens on Windows x64, Node.js 24.14.1, over Asia/Shanghai dates
+2026-09-12 through 2026-09-14. Requests were serial with roughly four-second
+spacing except where unspaced bursts are noted. No credit metering was applied;
+this was an owner-authorized interactive session, not a smoke-runner batch.
+
+Successful coverage included:
+
+- Both `ecnu-max` and `ecnu-reasoner` returned `200` for `reasoning_effort`
+  values `low`, `high`, `xhigh`, and `max`, with a clean dose-response curve
+  (median reasoning tokens: low ~117, high ~155, xhigh ~178, max ~343).
+- `ecnu-reasoner` bare requests returned non-zero reasoning tokens; `ecnu-max`
+  bare requests returned zero. The alias activates thinking server-side.
+- `ecnu-max` with `reasoning_effort` but no `thinking` parameter activated
+  thinking, contradicting the documented gating.
+- `minimal` and `medium` efforts returned intermittent HTTP 500 and are
+  unreliable; `xhigh` is undocumented but stable.
+- Both models correctly recognized a synthetic 96x96 red-circle PNG and
+  returned the expected "circle red" description, with and without thinking.
+- Function calling with thinking coexisted normally on both models; a
+  two-turn tool exchange without preserved `reasoning_content` returned `200`.
+- Rapid sub-second request bursts returned `401`
+  `{"detail": "获取第三方元数据失败"}`; four-second spacing eliminated it.
+
+No SDK, streaming, long-context, embedding, rerank, TTS, or image-generation
+revalidation was performed in this run. The dose-response medians are
+characterization samples, not quality benchmarks. Older observations retain
+their original dates and statuses.
 
 ## Update rules
 
