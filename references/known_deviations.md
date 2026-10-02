@@ -204,6 +204,11 @@ and credentials were not retained.
 
 ## Direct `ecnu-max` image input
 
+Current-contract note (documentation checked 2026-10-02, not a retest): the
+[2026-09-18 model change](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
+made `ecnu-max` text-only again. Use `ecnu-plus` for image understanding.
+The resolved status below describes only the September 12 fixture.
+
 - **Tested at:** 2026-09-12; previous failure on 2026-08-23
 - **Environment:** live-2026-09-12-a, direct HTTP; historical live-2026-08-23-a
 - **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
@@ -353,26 +358,37 @@ other SDK versions, streaming, or arbitrary framework adapters.
 
 ## ecnu-max reasoning_effort as thinking trigger
 
+**Current-contract note (2026-10-02):** The [thinking page](https://developer.ecnu.edu.cn/vitepress/llm/thinking.html)
+still requires explicit `thinking` on `ecnu-max`. The observation below has
+not been rerun against the current deployment; use the documented switch for
+new integrations. Its original test date and status are retained.
+
 - **Tested at:** 2026-09-12
 - **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
 - **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
 - **Documented expectation:** The thinking page states that `reasoning_effort` only takes effect when thinking mode is enabled via `thinking: {"type": "enabled"}`; without it, `reasoning_effort` is ignored.
 - **Observed behavior:** `ecnu-max` requests with `reasoning_effort` set but no `thinking` field returned `200` with non-zero `usage.completion_tokens_details.reasoning_tokens`. Dose-response was clean across `low` (median ~117), `high` (~155), and `max` (~343). Adding `thinking: {"type": "enabled"}` alongside `reasoning_effort` did not increase the token count beyond the same-effort baseline.
 - **Reproduction conditions:** Send `ecnu-max` requests with `reasoning_effort` set to `low`, `high`, and `max` but omit `thinking`; record `usage.completion_tokens_details.reasoning_tokens` for each.
-- **Impact:** Clients following the documented precondition may unnecessarily send a `thinking` parameter, or may wrongly conclude thinking is off when only `reasoning_effort` is sent. The documented gating does not match the current deployment.
-- **Recommended fallback:** For `ecnu-max`, sending `reasoning_effort` alone is sufficient to activate thinking; the `thinking` parameter is optional. Do not treat the documented gating as authoritative until rechecked. Keep the `thinking` parameter if an upstream SDK requires it, but do not require it for function.
+- **Impact:** Clients following the documented precondition may unnecessarily send a `thinking` parameter, or may wrongly conclude thinking is off when only `reasoning_effort` is sent. The documented gating did not match the sampled deployment.
+- **Recommended fallback:** Send the documented explicit `thinking` switch for `ecnu-max`; do not rely on this dated effort-only behavior. For a client that cannot send the switch, the documented `ecnu-reasoner` alias defaults to enabled thinking.
 - **Status:** active
 
 ## Unavailable reasoning effort tiers
+
+**Current-contract note (2026-10-02):** Current documented tiers are
+`low` / `high` / `max` for `ecnu-max` and `low` / `medium` / `xhigh` for
+`ecnu-plus`. The September observation below covers max only and has not
+been rerun; it does not make `medium` invalid on plus or `xhigh` a supported
+max default. Its original test date and status are retained.
 
 - **Tested at:** 2026-09-12
 - **Environment:** live-2026-09-12-c, Node.js `fetch` direct HTTP
 - **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`
 - **Documented expectation:** The thinking page lists `low`, `high`, and `max` as the three supported `reasoning_effort` values for `ecnu-max`.
 - **Observed behavior:** `minimal` returned HTTP 500 on 5 of 7 attempts; `medium` returned HTTP 500 on 7 of 9 attempts. Both occasionally succeeded but cannot be relied on. `xhigh`, although absent from the documentation, returned `200` on all attempts with a reasoning-token median (~178) between `high` and `max`. `low`, `high`, and `max` were stable across all samples.
-- **Reproduction conditions:** Send `ecnu-max` requests with each of `minimal`, `medium`, `xhigh`, `low`, `high`, and `max` as `reasoning_effort`; use serial requests with roughly four-second spacing to avoid the rate-limit deviation below.
+- **Reproduction conditions:** Send `ecnu-max` requests with each of `minimal`, `medium`, `xhigh`, `low`, `high`, and `max` as `reasoning_effort`; use serial requests with roughly four-second spacing to separate this check from the rapid-request error observation below.
 - **Impact:** A client that sends `minimal` or `medium` (for example, via an SDK default or a UI selector that does not filter values) will hit intermittent 500 errors. `xhigh` is a usable but undocumented tier.
-- **Recommended fallback:** Restrict `reasoning_effort` to `low`, `high`, `xhigh`, and `max` in client-side selectors and validators. Do not send `minimal` or `medium`. If an SDK or framework injects those values, intercept and remap them before the request. Treat `xhigh` as usable but recheck before relying on it for a production default.
+- **Recommended fallback:** Use each model's current documented tiers, not the extra tiers accepted by this historical deployment. Reject an unsupported value locally rather than silently remapping it to a different effort.
 - **Status:** active
 
 ## Rapid-request 401 metadata failure
@@ -383,11 +399,16 @@ other SDK versions, streaming, or arbitrary framework adapters.
 - **Documented expectation:** `401` indicates an authentication failure; the official guidance only advises avoiding parallel calls.
 - **Observed behavior:** Rapid sequential requests (under roughly one second apart) to either endpoint returned `401` with `{"detail": "获取第三方元数据失败"}` even though the same bearer passed spaced requests. Spacing requests by roughly four seconds eliminated the failures. The error shape is identical to the unsupported-model case above, making them indistinguishable without a working control.
 - **Reproduction conditions:** Send the same valid bearer to the same documented model in a tight loop (sub-second spacing); then repeat with four-second spacing.
-- **Impact:** A client may mistake rate-limiting for a credential failure and trigger key rotation or an auth stop. A retry loop without backoff can sustain the 401 and exhaust credits on failed attempts.
-- **Recommended fallback:** On a `401` with this detail string, first retry once after a four-second delay before treating it as an authentication failure. Always serialize requests to ECNU; do not use parallel call patterns. Do not rotate keys based solely on this error shape without a spaced-control request.
+- **Impact:** A client may mistake this spacing-correlated error for a credential failure and trigger unnecessary key rotation. These observations do not establish a server-side rate-limit cause or whether rejected requests were billed.
+- **Recommended fallback:** Inspect the complete error and chosen model first. If the request was explicitly rejected and a live check is authorized, one spaced control request can test whether the error persists. Do not automatically repeat a possibly accepted POST after a timeout or dropped connection, or rotate keys from this error shape alone.
 - **Status:** active
 
 ## Verified coverage on 2026-09-12 through 2026-09-14
+
+**Current-contract note (2026-10-02):** This is historical coverage, not a
+current capability test. The model page now specifies max as text-only with
+512K context; use plus for image understanding and the current per-model
+thinking tiers. No live revalidation was performed for this note.
 
 Environment `live-2026-09-12-c` made characterization requests across two
 personal tokens on Windows x64, Node.js 24.14.1, over Asia/Shanghai dates

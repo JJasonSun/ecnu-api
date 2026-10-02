@@ -100,7 +100,9 @@ DOCUMENTED_MODELS = frozenset(
         "ecnu-plus",
         "ecnu-max",
         "ecnu-embedding-small",
+        "ecnu-embedding-vl",
         "ecnu-rerank",
+        "ecnu-rerank-vl",
         "ecnu-image",
         "ecnu-tts",
     }
@@ -1302,19 +1304,21 @@ def _minimum_output_credit(model: str | None, payload: Mapping[str, Any] | None)
 def estimate_consumed_credits(
     spec: CaseSpec, status: int | None, shape: Mapping[str, Any]
 ) -> tuple[float, str]:
-    """Estimate credits conservatively from fixed prices or numeric usage."""
+    """Estimate credits from fixed prices or base/off-peak numeric usage."""
     if spec.method != "POST" or "MockTransport" in spec.protocol:
         return 0.0, "no billable ECNU POST"
+    if spec.model in {"ecnu-embedding-vl", "ecnu-rerank-vl"}:
+        return 0.2, f"official fixed {spec.model} price per attempted call"
     if spec.model == "ecnu-embedding-small" or spec.endpoint.endswith("/embeddings"):
         return 0.05, "official fixed embedding price per attempted call"
     if spec.endpoint.endswith("/rerank"):
-        return 0.1, "official fixed rerank price per attempted call"
+        return 0.05, "official fixed rerank price per attempted call"
     if spec.endpoint.endswith("/audio/speech"):
         return 5.0, "official fixed TTS price per attempted call"
-    if spec.endpoint.endswith("/images/generations"):
+    if spec.endpoint.endswith(("/images/generations", "/images/edits")):
         if status is None or status == 200:
             return 30.0, "official image price; ambiguous attempts counted conservatively"
-        return 0.0, "definite failed image response is not counted as a successful generation"
+        return 0.0, "definite failed image response is not counted as a successful image result"
 
     counters = shape.get("usage_counters")
     if not isinstance(counters, dict) or not counters:
@@ -1335,7 +1339,7 @@ def estimate_consumed_credits(
         + (cached_subset + separate_cache) * hit_rate
         + output_tokens * output_rate
     ) / 1_000_000
-    return credits, f"official {model} miss/hit/output token formula"
+    return credits, f"{model} base/off-peak token estimate; peak multiplier not applied"
 
 
 def case_response_matches(
@@ -2152,7 +2156,7 @@ def _embedding_rerank_cases() -> list[CaseSpec]:
     ]
     endpoint = OPENAI_BASE + "/rerank"
     for case_id, payload, statuses, expectation in rerank_rows:
-        cases.append(_case(case_id, ("core",), "Cohere-compatible rerank", endpoint, "ecnu-rerank", payload, expectation, "rerank", statuses, cost=0.1))
+        cases.append(_case(case_id, ("core",), "Cohere-compatible rerank", endpoint, "ecnu-rerank", payload, expectation, "rerank", statuses, cost=0.05))
     return cases
 
 
@@ -2172,22 +2176,21 @@ def _vision_structured_error_cases() -> list[CaseSpec]:
         ],
         "max_tokens": 128,
     }
-    for model in ("ecnu-plus", "ecnu-max"):
-        cases.append(
-            _case(
-                "vision_direct_" + model.replace("-", "_"),
-                ("core",),
-                "OpenAI-compatible",
-                endpoint,
-                model,
-                {**representative_vision, "model": model},
-                f"{model} accepts structured text and image_url data parts.",
-                "vision",
-                (200,),
-                cost=0.1 if model == "ecnu-plus" else 0.25,
-                payload_factory=lambda context, selected=model: _vision_payload(context, selected),
-            )
+    cases.append(
+        _case(
+            "vision_direct_ecnu_plus",
+            ("core",),
+            "OpenAI-compatible",
+            endpoint,
+            "ecnu-plus",
+            representative_vision,
+            "ecnu-plus accepts structured text and image_url data parts.",
+            "vision",
+            (200,),
+            cost=0.1,
+            payload_factory=lambda context: _vision_payload(context, "ecnu-plus"),
         )
+    )
     for model in ("ecnu-plus", "ecnu-max"):
         for format_type in ("json_schema", "json_object"):
             response_format: dict[str, Any] = {"type": format_type}

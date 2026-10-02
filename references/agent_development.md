@@ -8,6 +8,12 @@ Model facts and protocol rules are linked from [models.md](models.md) and
 [api_reference.md](api_reference.md). The design advice and prompt examples
 below are **`application-policy`**: starting points to evaluate on your tasks.
 
+**Contract update checked 2026-10-02:** the 2026-09-18 model change made
+`ecnu-max` text-only again; use `ecnu-plus` for vision. Plus now supports
+`low` / `medium` / `xhigh` effort when thinking is enabled. The older model
+choices below describe the September 12 checks, not current execution advice;
+follow [current model selection](models.md) and [thinking](examples.md#thinking-and-tool-history).
+
 ## Choose a model and reasoning budget
 
 | Workload | Starting point | What to check before escalating |

@@ -3,7 +3,7 @@ name: ecnu-api
 description: >
   Connect an application or SDK to the ECNU / ChatECNU LLM Open Platform
   at chat.ecnu.edu.cn, or diagnose an ECNU API failure. Covers chat,
-  Responses, tools, vision, embeddings, rerank, images, TTS, and
+  Responses, tools, vision, text/image retrieval, image generation/editing, TTS, and
   Anthropic-compatible clients. Not for general ECNU information,
   unrelated model questions, or generic Agent/prompt design.
 ---
@@ -55,6 +55,8 @@ Its full messages URL ends in `/open/api/anthropic/v1/messages`.
 |---|---|
 | Chat, streaming, vision, Responses, JSON, rerank, images, TTS, or browser integration | [Official endpoint map](references/api_reference.md): open only the matching page |
 | LangChain embeddings | [Embedding recipe](references/examples.md#langchain-embeddings) |
+| Image editing or generation | [Image recipe](references/examples.md#image-generation-and-editing): distinguish JSON generation from multipart editing |
+| Image/text embeddings or rerank | [Multimodal retrieval](references/examples.md#multimodal-retrieval): choose the model and preserve vector-space compatibility |
 | Anthropic SDK setup | [Anthropic recipe](references/examples.md#anthropic-sdk) |
 | Thinking and tool continuation | [Tool-history recipe](references/examples.md#thinking-and-tool-history) plus the linked ECNU contract |
 | WorkBuddy desktop custom-model setup | [WorkBuddy recipe](references/workbuddy_setup.md) |

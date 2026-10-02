@@ -521,6 +521,15 @@ class PreflightMatcherTest(unittest.TestCase):
             )
         )
 
+    def test_multimodal_models_are_documented(self) -> None:
+        models = ["ecnu-embedding-vl", "ecnu-rerank-vl"]
+        classification = smoke_test.classify_models(models)
+        self.assertEqual(classification["documented-and-visible"], models)
+        self.assertEqual(classification["visible-but-undocumented"], [])
+        self.assertTrue(
+            set(models) <= set(smoke_test.classify_models([])["documented-but-not-visible"])
+        )
+
     def test_authentication_requires_a_successful_protected_request(self) -> None:
         discovery = {"object": "list", "data": [{"id": "ecnu-plus"}]}
         chat = {
@@ -714,7 +723,7 @@ class PreflightMatcherTest(unittest.TestCase):
         )
         self.assertIsNone(smoke_test._image_dimensions(forged))
 
-    def test_usage_counters_and_official_credit_formula_are_retained(self) -> None:
+    def test_usage_counters_and_base_credit_estimate_are_retained(self) -> None:
         spec = self.case("chat_basic_ecnu_max")
         shape = {
             "usage_counters": {
@@ -726,6 +735,8 @@ class PreflightMatcherTest(unittest.TestCase):
         credits, basis = smoke_test.estimate_consumed_credits(spec, 200, shape)
         self.assertAlmostEqual(credits, 0.0372)
         self.assertIn("ecnu-max", basis)
+        self.assertIn("base/off-peak", basis)
+        self.assertIn("peak multiplier not applied", basis)
 
         sdk_embedding = self.case("openai_sdk_embedding")
         fixed, fixed_basis = smoke_test.estimate_consumed_credits(
@@ -746,6 +757,33 @@ class PreflightMatcherTest(unittest.TestCase):
         )
         summary = smoke_test.summarize_response("chat", response)
         self.assertEqual(summary["usage_counters"], shape["usage_counters"])
+
+    def test_embedding_and_rerank_prices_distinguish_multimodal_models(self) -> None:
+        for case_id, model, expected in (
+            ("embedding_scalar", "ecnu-embedding-small", 0.05),
+            ("embedding_scalar", "ecnu-embedding-vl", 0.2),
+            ("rerank_default", "ecnu-rerank", 0.05),
+            ("rerank_default", "ecnu-rerank-vl", 0.2),
+        ):
+            spec = replace(self.case(case_id), model=model)
+            for status in (200, None):
+                with self.subTest(model=model, status=status):
+                    credits, _ = smoke_test.estimate_consumed_credits(spec, status, {})
+                    self.assertEqual(credits, expected)
+        for spec in smoke_test.build_cases():
+            if spec.model == "ecnu-rerank":
+                self.assertEqual(spec.estimated_credits, 0.05)
+
+    def test_image_edit_and_generation_charge_only_success_or_ambiguous_attempt(self) -> None:
+        for endpoint in ("/images/generations", "/images/edits"):
+            spec = replace(
+                self.case("image_generation_documented"),
+                endpoint=smoke_test.OPENAI_BASE + endpoint,
+            )
+            for status, expected in ((200, 30.0), (None, 30.0), (400, 0.0), (500, 0.0)):
+                with self.subTest(endpoint=endpoint, status=status):
+                    credits, _ = smoke_test.estimate_consumed_credits(spec, status, {})
+                    self.assertEqual(credits, expected)
 
     def test_compatibility_vision_is_unverified_and_behavior_checked(self) -> None:
         for case_id in (
@@ -881,42 +919,54 @@ class PreflightMatcherTest(unittest.TestCase):
         ):
             self.assertFalse(smoke_test.case_response_matches(spec, 200, invalid))
 
-    def test_direct_vision_requires_image_understanding_for_both_models(self) -> None:
-        for model in ("ecnu-plus", "ecnu-max"):
-            spec = self.case("vision_direct_" + model.replace("-", "_"))
-            for status, content, finish_reason, expected in (
-                (200, "A red square.", "stop", "pass"),
-                (200, "A red square.", "length", "mismatch"),
-                (200, "A red square.", "content_filter", "mismatch"),
-                (200, "A red square.", None, "mismatch"),
-                (200, "A red square.", ["stop"], "mismatch"),
-                (200, "A red square.", {"reason": "stop"}, "mismatch"),
-                (200, "I cannot inspect images.", "stop", "mismatch"),
-                (200, "", "stop", "mismatch"),
-                (422, "Images are unsupported.", None, "mismatch"),
-            ):
-                with self.subTest(model=model, status=status, content=content):
-                    payload = (
-                        {"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]}
-                        if status == 200 else {"detail": content}
+    def test_direct_vision_requires_image_understanding(self) -> None:
+        spec = self.case("vision_direct_ecnu_plus")
+        for status, content, finish_reason, expected in (
+            (200, "A red square.", "stop", "pass"),
+            (200, "A red square.", "length", "mismatch"),
+            (200, "A red square.", "content_filter", "mismatch"),
+            (200, "A red square.", None, "mismatch"),
+            (200, "A red square.", ["stop"], "mismatch"),
+            (200, "A red square.", {"reason": "stop"}, "mismatch"),
+            (200, "I cannot inspect images.", "stop", "mismatch"),
+            (200, "", "stop", "mismatch"),
+            (422, "Images are unsupported.", None, "mismatch"),
+        ):
+            with self.subTest(status=status, content=content):
+                payload = (
+                    {"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]}
+                    if status == 200 else {"detail": content}
+                )
+                response = smoke_test.HttpResult(
+                    status,
+                    {"content-type": "application/json"},
+                    json.dumps(payload).encode(),
+                )
+                with smoke_test.temporary_artifacts() as directory:
+                    context = smoke_test.RunContext(
+                        "test-key", 1.0, directory, smoke_test.CreditBudget(1.0)
                     )
-                    response = smoke_test.HttpResult(
-                        status,
-                        {"content-type": "application/json"},
-                        json.dumps(payload).encode(),
-                    )
-                    with smoke_test.temporary_artifacts() as directory:
-                        context = smoke_test.RunContext(
-                            "test-key", 1.0, directory, smoke_test.CreditBudget(1.0)
-                        )
-                        with patch.object(
-                            smoke_test, "raw_executor",
-                            return_value=smoke_test.Execution(response, "mock"),
-                        ):
-                            record = smoke_test.run_one(context, spec)
-                    self.assertEqual(record["result"], expected)
-                    if finish_reason == "length":
-                        self.assertEqual(record["actual_response_shape"]["vision_behavior"], "truncated")
+                    with patch.object(
+                        smoke_test, "raw_executor",
+                        return_value=smoke_test.Execution(response, "mock"),
+                    ):
+                        record = smoke_test.run_one(context, spec)
+                self.assertEqual(record["result"], expected)
+                if finish_reason == "length":
+                    self.assertEqual(record["actual_response_shape"]["vision_behavior"], "truncated")
+
+    def test_core_vision_uses_plus_and_max_vision_stays_compatibility(self) -> None:
+        core_vision = [
+            case.model for case in smoke_test.build_cases()
+            if "core" in case.profiles and "vision" in case.response_kind
+        ]
+        self.assertEqual(core_vision, ["ecnu-plus"])
+        for case in smoke_test.build_cases():
+            if "core" in case.profiles and case.model == "ecnu-max":
+                self.assertNotIn("image_url", json.dumps(case.request_shape), case.case_id)
+                self.assertNotIn("media_type", json.dumps(case.request_shape), case.case_id)
+        for case_id in ("responses_max_vision_compatibility", "anthropic_max_vision_compatibility"):
+            self.assertEqual(self.case(case_id).profiles, {"compatibility"})
 
 
 class StructuredOutputTest(unittest.TestCase):
@@ -1083,7 +1133,7 @@ class EvidenceAndProfileTest(unittest.TestCase):
             "embedding_token_ids",
             "embedding_8193_chars",
             "rerank_top_n_over_count",
-            "vision_direct_ecnu_max",
+            "vision_direct_ecnu_plus",
             "structured_output_ecnu_plus",
             "structured_output_ecnu_max",
             "structured_output_json_object_ecnu_plus",

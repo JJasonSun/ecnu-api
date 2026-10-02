@@ -18,15 +18,15 @@ These links are dated observations, not claims that the issue still reproduces.
 | Missing auth produces an unexpected error | Preserve actual status and body type: [missing authorization](known_deviations.md#missing-authorization-on-model-discovery) |
 | A new model ID appears but fails | Discovery is not endpoint capability: [runtime-only model](known_deviations.md#undocumented-model-visible-at-runtime) |
 | `401` only for an unsupported model or `[1m]` | Compare a documented working control; do not rotate keys blindly: [unsupported model](known_deviations.md#unsupported-chat-model-error), [suffix conditions](known_deviations.md#anthropic-long-context-suffix-metadata) |
-| `401` with `获取第三方元数据失败` under rapid requests | Rate-limit, not auth failure; space requests ~4s and retry once: [rapid-request 401](known_deviations.md#rapid-request-401-metadata-failure) |
+| `401` with `获取第三方元数据失败` under rapid requests | Compare the dated spacing observation; the error alone does not identify the cause: [rapid-request 401](known_deviations.md#rapid-request-401-metadata-failure) |
 | SDK works for chat but embeddings fail | Check raw strings and local validation: [embedding recipe](examples.md#langchain-embeddings) |
 | Tool continuation loses state or reasoning fields | Preserve the actual message and inspect serialization: [recipe](examples.md#thinking-and-tool-history), [field variation](known_deviations.md#max-thinking-response-fields) |
 | `reasoning_content` is absent but thinking seems active | Check `usage.completion_tokens_details.reasoning_tokens`, not `message.reasoning_content`: [field variation](known_deviations.md#max-thinking-response-fields), [alias default thinking](known_deviations.md#ecnu-reasoner-alias-default-thinking) |
-| `ecnu-max` thinking won't activate without `thinking` parameter | `reasoning_effort` alone triggers it; the documented gating is not enforced: [effort as trigger](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger) |
-| `minimal` or `medium` effort returns intermittent 500 | Restrict to `low`/`high`/`xhigh`/`max`; remap or filter unsupported tiers: [unavailable tiers](known_deviations.md#unavailable-reasoning-effort-tiers) |
+| `ecnu-max` thinking will not activate | Send the documented explicit switch; [effort-only activation](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger) was observed in September, not revalidated for the current backend |
+| An effort tier fails | Use the chosen model's [documented tiers](examples.md#thinking-and-tool-history); the [September max observation](known_deviations.md#unavailable-reasoning-effort-tiers) does not apply to plus |
 | TTS error parsing crashes | Tolerate non-JSON errors: [invalid voice](known_deviations.md#invalid-tts-voice-error-shape) |
 | PCM bytes arrive without format metadata | Configure the format explicitly: [missing headers](known_deviations.md#successful-tts-response-headers) |
-| Historical max-vision limitation conflicts with current docs | Check the chosen protocol and current contract: [resolved fixture](known_deviations.md#direct-ecnu-max-image-input) |
+| Old max-vision success conflicts with current docs | Current max is text-only; the [September 12 fixture](known_deviations.md#direct-ecnu-max-image-input) predates the September 18 contract change |
 | `422` | Inspect `detail` and the relevant [request contract](api_reference.md); do not retry the unchanged request |
 | `429` | Check [current credits/quota](models.md); stop parallel retries |
 | Timeout or dropped connection after POST | Completion and debit may be unknown; do not automatically resubmit |
@@ -48,6 +48,9 @@ disables POST retries, reserves estimated credits, and redacts reports. Its
 50-credit default is a cap, not authorization; use the lower approved cap and
 obtain separate authorization before exceeding 50. Estimates are not actual debit.
 Keep the same cumulative allowance across reruns, not a new allowance per process.
+Token estimates use base/off-peak rates, not the current peak/holiday multiplier;
+include that multiplier when checking the approved allowance. Fixed-price
+embedding, rerank, image and TTS calls do not use peak pricing.
 
 To inspect options without a network request:
 
@@ -68,6 +71,12 @@ checks only but is not conclusive authentication proof; `core`, `compatibility`,
 and `billable` group other probes. Use `--case` to narrow them. Do not use `all`
 for an ordinary integration check. Image/TTS probes need authorization covering
 those billable operations and must not be scheduled automatically.
+
+The runner does not yet have live cases for VL retrieval or image editing.
+For those tasks, adapt the [minimal recipes](examples.md) to one authorized,
+serial check with synthetic or approved media; preserve the same timeout,
+no-retry and redaction boundaries. Offline recipe tests validate request
+serialization and error handling, not service availability or output quality.
 
 ## Interpret the evidence
 
