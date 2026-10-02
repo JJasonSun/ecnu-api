@@ -22,7 +22,7 @@ These links are dated observations, not claims that the issue still reproduces.
 | Tool continuation loses state or reasoning fields | Preserve the actual message and inspect serialization: [recipe](examples.md#thinking-and-tool-history), [field variation](known_deviations.md#max-thinking-response-fields) |
 | TTS error parsing crashes | Tolerate non-JSON errors: [invalid voice](known_deviations.md#invalid-tts-voice-error-shape) |
 | PCM bytes arrive without format metadata | Configure the format explicitly: [missing headers](known_deviations.md#successful-tts-response-headers) |
-| Historical max-vision limitation conflicts with current docs | Check the chosen protocol and current contract: [resolved fixture](known_deviations.md#direct-ecnu-max-image-input) |
+| Old max-vision success conflicts with current docs | Current max is text-only; the [September 12 fixture](known_deviations.md#direct-ecnu-max-image-input) predates the September 18 contract change |
 | `422` | Inspect `detail` and the relevant [request contract](api_reference.md); do not retry the unchanged request |
 | `429` | Check [current credits/quota](models.md); stop parallel retries |
 | Timeout or dropped connection after POST | Completion and debit may be unknown; do not automatically resubmit |
@@ -44,6 +44,9 @@ disables POST retries, reserves estimated credits, and redacts reports. Its
 50-credit default is a cap, not authorization; use the lower approved cap and
 obtain separate authorization before exceeding 50. Estimates are not actual debit.
 Keep the same cumulative allowance across reruns, not a new allowance per process.
+Token estimates use base/off-peak rates, not the current peak/holiday multiplier;
+include that multiplier when checking the approved allowance. Fixed-price
+embedding, rerank, image and TTS calls do not use peak pricing.
 
 To inspect options without a network request:
 
@@ -64,6 +67,12 @@ checks only but is not conclusive authentication proof; `core`, `compatibility`,
 and `billable` group other probes. Use `--case` to narrow them. Do not use `all`
 for an ordinary integration check. Image/TTS probes need authorization covering
 those billable operations and must not be scheduled automatically.
+
+The runner does not yet have live cases for VL retrieval or image editing.
+For those tasks, adapt the [minimal recipes](examples.md) to one authorized,
+serial check with synthetic or approved media; preserve the same timeout,
+no-retry and redaction boundaries. Offline recipe tests validate request
+serialization and error handling, not service availability or output quality.
 
 ## Interpret the evidence
 

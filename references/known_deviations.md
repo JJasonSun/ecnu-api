@@ -193,6 +193,11 @@ Only response structure, field-preservation checks, and usage were retained.
 
 ## Direct `ecnu-max` image input
 
+Current-contract note (documentation checked 2026-10-02, not a retest): the
+[2026-09-18 model change](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
+made `ecnu-max` text-only again. Use `ecnu-plus` for image understanding.
+The resolved status below describes only the September 12 fixture.
+
 - **Tested at:** 2026-09-12; previous failure on 2026-08-23
 - **Environment:** live-2026-09-12-a, direct HTTP; historical live-2026-08-23-a
 - **Protocol and endpoint:** OpenAI-compatible `POST /chat/completions`

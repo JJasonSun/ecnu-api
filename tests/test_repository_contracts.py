@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import base64
 import json
+import os
 import re
 import shutil
 import sys
 import tempfile
 import unittest
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -100,6 +105,100 @@ class RepositoryValidatorHelpersTest(unittest.TestCase):
 
 
 class CurrentRepositoryContractsTest(unittest.TestCase):
+    def test_image_edit_recipe_multipart_and_output_validation(self) -> None:
+        import requests
+
+        text = (ROOT / "references/examples.md").read_text(encoding="utf-8")
+        section = text.split("## Image generation and editing\n", 1)[1].split("\n## ", 1)[0]
+        code, = re.findall(r"```python\n(.*?)\n```", section, re.S)
+        image_bytes = b"synthetic source image"
+        edited_bytes = b"synthetic edited image"
+        requests_seen = []
+        bodies = [
+            {"data": [{"b64_json": base64.b64encode(edited_bytes).decode()}]},
+            {"err_message": "rejected", "data": [{"revised_prompt": "****"}]},
+            {"data": [{"revised_prompt": "instruction only"}]},
+            {"data": [{"b64_json": "not base64!"}]},
+            {"data": []},
+        ]
+
+        def send(request, **kwargs):
+            requests_seen.append(request)
+            self.assertEqual(kwargs["timeout"], 120)
+            response = requests.Response()
+            response.status_code = 200
+            response._content = json.dumps(body).encode()
+            return response
+
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.png"
+            source.write_bytes(image_bytes)
+            with patch.dict(os.environ, {"ECNU_API_KEY": "test-key"}), \
+                    patch("requests.sessions.Session.send", side_effect=send):
+                for index, body in enumerate(bodies):
+                    with self.subTest(body=index):
+                        namespace = {"image_path": source, "prompt": "Keep the subject; change the sky"}
+                        if index == 0:
+                            exec(code, namespace)
+                            self.assertEqual(namespace["edited_bytes"], edited_bytes)
+                        else:
+                            with self.assertRaises((RuntimeError, ValueError)):
+                                exec(code, namespace)
+                        self.assertEqual(source.read_bytes(), image_bytes)
+                        self.assertEqual(len(requests_seen), index + 1)
+                        self.assertTrue(namespace["source"].closed)
+
+                for prompt in ("", " ", "x" * 1025, None):
+                    with self.subTest(prompt_length=len(prompt) if prompt else 0):
+                        with self.assertRaises(ValueError):
+                            exec(code, {"image_path": source, "prompt": prompt})
+                self.assertEqual(len(requests_seen), len(bodies))
+
+        request = requests_seen[0]
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.url, "https://chat.ecnu.edu.cn/open/api/v1/images/edits")
+        self.assertEqual(request.headers["Authorization"], "Bearer test-key")
+        multipart = BytesParser(policy=policy.default).parsebytes(
+            ("Content-Type: " + request.headers["Content-Type"] + "\r\n\r\n").encode()
+            + request.body
+        )
+        fields = {part.get_param("name", header="content-disposition"): part
+                  for part in multipart.iter_parts()}
+        self.assertEqual(set(fields), {"model", "prompt", "response_format", "image"})
+        self.assertEqual(fields["model"].get_payload(decode=True), b"ecnu-image")
+        self.assertEqual(fields["prompt"].get_payload(decode=True), b"Keep the subject; change the sky")
+        self.assertEqual(fields["response_format"].get_payload(decode=True), b"b64_json")
+        self.assertEqual(fields["image"].get_payload(decode=True), image_bytes)
+
+    def test_multimodal_recipe_preserves_image_objects(self) -> None:
+        import requests
+
+        text = (ROOT / "references/examples.md").read_text(encoding="utf-8")
+        section = text.split("## Multimodal retrieval\n", 1)[1].split("\n## ", 1)[0]
+        code, = re.findall(r"```python\n(.*?)\n```", section, re.S)
+        data_url = "data:image/png;base64," + base64.b64encode(b"synthetic image").decode()
+        namespace = {"image_data_url": data_url}
+        exec(code, namespace)
+        for name, endpoint, model in (
+            ("embedding_payload", "/embeddings", "ecnu-embedding-vl"),
+            ("rerank_payload", "/rerank", "ecnu-rerank-vl"),
+        ):
+            with self.subTest(endpoint=endpoint):
+                request = requests.Request(
+                    "POST", "https://example.test" + endpoint, json=namespace[name],
+                ).prepare()
+                body = json.loads(request.body)
+                self.assertEqual(body["model"], model)
+                items = body["input"] if name == "embedding_payload" else body["documents"]
+                self.assertEqual(items[0], {"text": "A red flower beside a green leaf", "image": data_url})
+                self.assertIsInstance(items[1], str)
+                if name == "embedding_payload":
+                    self.assertEqual(body["dimensions"], 1024)
+                    self.assertEqual(body["encoding_format"], "float")
+                else:
+                    self.assertFalse(body["return_documents"])
+                    self.assertEqual(body["top_n"], len(items))
+
     def test_documentation_can_quote_embedding_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "ecnu-api"

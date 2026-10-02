@@ -23,9 +23,10 @@ in environment variables; ticket URLs are also credentials.
 | Chat, streaming, tools, image understanding | [Chat Completions](https://developer.ecnu.edu.cn/vitepress/llm/api/completions.html) | [Thinking/tool history](examples.md#thinking-and-tool-history) |
 | Responses-compatible client | [Responses](https://developer.ecnu.edu.cn/vitepress/llm/api/responses.html) | Verify the specific advanced tool/event support; compatibility alone is insufficient |
 | JSON Schema or JSON object output | [Structured output](https://developer.ecnu.edu.cn/vitepress/llm/api/structuredoutput.html) | Check completion, parse raw JSON, and validate the supplied schema; do not hide a mismatch by stripping fences |
-| Embeddings | [Text vectors](https://developer.ecnu.edu.cn/vitepress/llm/api/embedding.html) | [Raw-string LangChain recipe](examples.md#langchain-embeddings) |
-| Rerank | [Rerank](https://developer.ecnu.edu.cn/vitepress/llm/api/rerank.html) | Use the endpoint's contract, not an assumed OpenAI SDK method |
-| Image generation | [Images](https://developer.ecnu.edu.cn/vitepress/llm/api/imagegenerate.html) | Observe the current URL lifetime and avoid duplicate paid generations |
+| Text or multimodal embeddings | [Vectors](https://developer.ecnu.edu.cn/vitepress/llm/api/embedding.html) | [Text LangChain recipe](examples.md#langchain-embeddings) or [VL payloads](examples.md#multimodal-retrieval); dimensions are model-specific |
+| Text or multimodal rerank | [Rerank](https://developer.ecnu.edu.cn/vitepress/llm/api/rerank.html) | [VL payloads](examples.md#multimodal-retrieval); use the endpoint's contract, not an assumed OpenAI SDK method |
+| Image generation | [Images](https://developer.ecnu.edu.cn/vitepress/llm/api/imagegenerate.html) | [Generation/edit differences](examples.md#image-generation-and-editing); original and revised prompts can differ |
+| Edit an existing image | [Image edits](https://developer.ecnu.edu.cn/vitepress/llm/api/imageedit.html) | [Multipart recipe](examples.md#image-generation-and-editing); one uploaded image, original instruction, no output-size control |
 | Text-to-speech | [Audio](https://developer.ecnu.edu.cn/vitepress/llm/api/audio.html) | [Non-JSON errors and PCM headers](workflows.md#start-from-the-symptom) |
 | Model discovery | [Models endpoint](https://developer.ecnu.edu.cn/vitepress/llm/api/models.html) | A visible ID does not prove usable capability or valid authentication |
 | Anthropic-compatible client | [Anthropic API](https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html) | [SDK setup](examples.md#anthropic-sdk); investigate suffix errors only when they occur |
