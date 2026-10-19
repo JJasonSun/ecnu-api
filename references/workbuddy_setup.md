@@ -4,7 +4,7 @@ Connect ECNU to WorkBuddy desktop as a custom OpenAI-compatible model source.
 The desktop implementation and startup behavior below were inspected on
 2026-09-12; they have not been revalidated on current WorkBuddy builds.
 The configuration follows the [ECNU model contract](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
-checked on 2026-10-02, but this revised configuration has not been live-tested.
+checked on 2026-10-19, but this revised configuration has not been live-tested.
 
 ## Configuration file
 
@@ -36,9 +36,12 @@ Edit the JSON file directly.
 ## Configuration example
 
 Use `ecnu-reasoner` for thinking and `ecnu-max` for ordinary text requests.
-Both are currently text-only. The input/output limits below are conservative
-client budgets: together they stay below the documented 512K context, without
-assuming whether K means 1000 or 1024. They are not backend maximums.
+The entries below keep this client text-only; since 2026-10-01 the ECNU model
+page documents image understanding on both `ecnu-max` and `ecnu-plus`, so
+`supportsImages: false` is a client configuration choice, not a model limit.
+The input/output limits below are conservative client budgets: together they
+stay below the documented 512K context, without assuming whether K means 1000
+or 1024. They are not backend maximums.
 
 ```json
 [

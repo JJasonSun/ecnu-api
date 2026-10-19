@@ -8,11 +8,12 @@ Model facts and protocol rules are linked from [models.md](models.md) and
 [api_reference.md](api_reference.md). The design advice and prompt examples
 below are **`application-policy`**: starting points to evaluate on your tasks.
 
-**Contract update checked 2026-10-02:** the 2026-09-18 model change made
-`ecnu-max` text-only again; use `ecnu-plus` for vision. Plus now supports
-`low` / `medium` / `xhigh` effort when thinking is enabled. The older model
-choices below describe the September 12 checks, not current execution advice;
-follow [current model selection](models.md) and [thinking](examples.md#thinking-and-tool-history).
+**Contract update checked 2026-10-19:** the 2026-10-01 model update moved
+`ecnu-max` to a multimodal backend, and both primary models now document image
+understanding. Plus supports `low` / `medium` / `xhigh` effort when thinking is
+enabled. The older model choices below describe the September 12 checks, not
+current execution advice; follow [current model selection](models.md) and
+[thinking](examples.md#thinking-and-tool-history).
 
 ## Choose a model and reasoning budget
 
@@ -33,9 +34,9 @@ Two upstream differences matter when adapting examples:
   ECNU still documents `low` / `high` / `max` for direct Chat requests. Use the
   ECNU protocol mappings; do not invent numeric equivalents.
 - **Qwen3.8:** upstream thinking defaults and template options differ from
-  ECNU. On ECNU, thinking defaults off, and `ecnu-plus` ignores effort tiers.
-  Use `thinking.type`; do not copy `enable_thinking`, `preserve_thinking`, or
-  `chat_template_kwargs` into ECNU requests.
+  ECNU. On ECNU, thinking defaults off, and `ecnu-plus` uses `low` / `medium` /
+  `xhigh` effort tiers. Use `thinking.type`; do not copy `enable_thinking`,
+  `preserve_thinking`, or `chat_template_kwargs` into ECNU requests.
 
 Use the API's thinking control instead of trying to activate it with a
 "think step by step" phrase. Ask for a concise answer with evidence and checks;

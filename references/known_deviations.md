@@ -204,10 +204,11 @@ and credentials were not retained.
 
 ## Direct `ecnu-max` image input
 
-Current-contract note (documentation checked 2026-10-02, not a retest): the
-[2026-09-18 model change](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
-made `ecnu-max` text-only again. Use `ecnu-plus` for image understanding.
-The resolved status below describes only the September 12 fixture.
+Current-contract note (documentation checked 2026-10-19, not a retest): the
+[2026-10-01 model update](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
+moved `ecnu-max` to DeepSeek-V4.1-Flash-1017 with native image understanding.
+The 2026-09-18 text-only interval is historical, and the resolved status below
+still describes only the September 12 fixture.
 
 - **Tested at:** 2026-09-12; previous failure on 2026-08-23
 - **Environment:** live-2026-09-12-a, direct HTTP; historical live-2026-08-23-a
@@ -405,10 +406,12 @@ max default. Its original test date and status are retained.
 
 ## Verified coverage on 2026-09-12 through 2026-09-14
 
-**Current-contract note (2026-10-02):** This is historical coverage, not a
-current capability test. The model page now specifies max as text-only with
-512K context; use plus for image understanding and the current per-model
-thinking tiers. No live revalidation was performed for this note.
+**Current-contract note (2026-10-19):** This is historical coverage, not a
+current capability test. The model page now documents image understanding on
+both primary models; the max-vision result below predates the 2026-09-18
+text-only interval and the 2026-10-01 multimodal backend update. Use the
+current per-model thinking tiers. No live revalidation was performed for this
+note.
 
 Environment `live-2026-09-12-c` made characterization requests across two
 personal tokens on Windows x64, Node.js 24.14.1, over Asia/Shanghai dates

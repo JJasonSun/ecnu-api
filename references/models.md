@@ -20,8 +20,12 @@ a measured quality or latency ranking.
 ## Select the capability, not just a new model name
 
 The [2026-09-30 release](https://developer.ecnu.edu.cn/vitepress/llm/release.html)
-added multimodal retrieval and image editing. Contract checked 2026-10-02;
-these are documented capabilities, not new live-test results.
+added multimodal retrieval and image editing. The
+[model page](https://developer.ecnu.edu.cn/vitepress/llm/model.html) also
+records the 2026-10-01 backend update: `ecnu-max` is now
+DeepSeek-V4.1-Flash-1017 and `ecnu-plus` is Qwen3.8-Flash-Next. Contract
+checked 2026-10-19; these are documented capabilities, not new live-test
+results.
 
 | Model | Backend in the current model page | Integration choice |
 |---|---|---|
@@ -31,6 +35,13 @@ these are documented capabilities, not new live-test results.
 | `ecnu-rerank-vl` | Qwen3-VL-Reranker-8B | Text/image query and candidates; rerank an already retrieved candidate set |
 | `ecnu-image` | qwen-image-2.1 | Generate from text or edit one existing image; different request formats and prompt handling |
 
+The same page currently lists `ecnu-max` with 512K context, up to 256K output,
+and `low` / `high` / `max` effort, and `ecnu-plus` with 256K context, up to
+128K output, and `low` / `medium` / `xhigh` effort. Each primary model has a
+documented concurrency cap of 3. Recheck those values before displaying or
+depending on them. `ecnu-tts` is Fun-CosyVoice3-0.5B with 16 voices and a
+4096-character input limit.
+
 Use the [retrieval and image recipes](examples.md) for the differences that
 affect requests. Equal vector dimensions do not imply compatible embedding
 spaces: changing embedding models requires re-embedding the indexed items and
@@ -38,12 +49,12 @@ using that same model and dimensions for queries. A reranker can change without
 replacing stored vectors; its relevance scores are not scientific or educational
 quality judgments and should not be compared across models.
 
-For image understanding, the current model page specifies `ecnu-plus`.
-`ecnu-max` currently uses DeepSeek-V4-Flash-0731 and is text-only; older
-DeepSeek-V4.1 and successful vision observations are historical, not current
-capability guarantees. Keep stable ECNU aliases in requests and recheck backend
-labels before displaying them. Do not relabel old generated assets as output
-from a newly announced backend.
+The current model page documents image understanding on both `ecnu-max` and
+`ecnu-plus`. The 2026-10-01 backend update moved `ecnu-max` to
+DeepSeek-V4.1-Flash-1017, ending the 2026-09-18 interval when it was text-only.
+Keep stable ECNU aliases in requests and recheck backend labels before
+displaying them. Do not relabel old generated assets as output from a newly
+announced backend.
 
 ## ECNU-specific boundaries
 
