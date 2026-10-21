@@ -32,6 +32,7 @@ in environment variables; ticket URLs are also credentials.
 | Anthropic-compatible client | [Anthropic API](https://developer.ecnu.edu.cn/vitepress/llm/api/anthropic.html) | [SDK setup](examples.md#anthropic-sdk); investigate suffix errors only when they occur |
 | Embed an iframe | [Embed integration](https://developer.ecnu.edu.cn/vitepress/llm/api/embediframe.html) | Do not log or reuse one-time tickets |
 | Browser link that submits a question | [URL chat](https://developer.ecnu.edu.cn/vitepress/llm/api/urlchat.html) | Opening a submit link sends data; do not auto-open it as a documentation check |
+| Error status or response shape | [Error codes](https://developer.ecnu.edu.cn/vitepress/llm/error.html) | [Targeted diagnosis](workflows.md#start-from-the-symptom); keep the actual status and body type |
 
 ## Account and changing values
 
