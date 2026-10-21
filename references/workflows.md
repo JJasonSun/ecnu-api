@@ -28,7 +28,7 @@ These links are dated observations, not claims that the issue still reproduces.
 | PCM bytes arrive without format metadata | Configure the format explicitly: [missing headers](known_deviations.md#successful-tts-response-headers) |
 | Old max-vision notes conflict with current docs | Current docs list image understanding on both models; the [September 12 fixture](known_deviations.md#direct-ecnu-max-image-input) predates the 2026-09-18 text-only interval and the 2026-10-01 backend update |
 | `422` | Inspect `detail` and the relevant [request contract](api_reference.md); do not retry the unchanged request |
-| `429` | Check [current credits/quota](models.md) and the documented per-model concurrency cap (3); stop parallel retries |
+| `429` | Check [current credits/quota](models.md) and the independent per-user concurrency caps (`ecnu-max`: 3; `ecnu-plus`: 5); stop parallel retries |
 | Timeout or dropped connection after POST | Completion and debit may be unknown; do not automatically resubmit |
 
 A later release announcement does not by itself resolve a deviation. Do not

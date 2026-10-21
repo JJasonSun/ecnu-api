@@ -37,10 +37,10 @@ results.
 
 The same page currently lists `ecnu-max` with 512K context, up to 256K output,
 and `low` / `high` / `max` effort, and `ecnu-plus` with 256K context, up to
-128K output, and `low` / `medium` / `xhigh` effort. Each primary model has a
-documented concurrency cap of 3. Recheck those values before displaying or
-depending on them. `ecnu-tts` is Fun-CosyVoice3-0.5B with 16 voices and a
-4096-character input limit.
+128K output, and `low` / `medium` / `xhigh` effort. Per-user concurrency caps
+are 3 for `ecnu-max` and 5 for `ecnu-plus`, counted independently. Recheck
+those values before displaying or depending on them. `ecnu-tts` is
+Fun-CosyVoice3-0.5B with 16 voices and a 4096-character input limit.
 
 Use the [retrieval and image recipes](examples.md) for the differences that
 affect requests. Equal vector dimensions do not imply compatible embedding
