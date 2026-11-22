@@ -1,17 +1,19 @@
 # ECNU API Agent Skill
 
-An unofficial skill that helps an Agent connect to the ECNU / ChatECNU LLM
-Open Platform without repeatedly finding the same docs or rediscovering the
-same integration differences.
-
-The default path is small: a working connection example, task-specific official
-documentation, and a few ECNU-specific recipes. Full live diagnostics are opt-in.
-This is not another API manual, a generic Agent course, or a required test harness.
+An unofficial Agent skill for building on the ECNU / ChatECNU LLM Open
+Platform: connect an application or SDK, harden it for production, and
+diagnose failures without rediscovering the same differences each time.
 
 ## Install and use
 
 ```bash
 npx skills add JJasonSun/ecnu-api
+```
+
+Update an existing global installation:
+
+```bash
+npx skills update -g ecnu-api
 ```
 
 Example request:
@@ -21,45 +23,28 @@ Use $ecnu-api to adapt this application to ECNU. Keep the current framework.
 Only change the integration and its relevant checks; do not make live requests.
 ```
 
-For an existing global installation:
+Configure `ECNU_API_KEY` through the environment or a secret manager when
+execution is needed. Never paste a real key into chat or commit it.
 
-```bash
-npx skills update -g ecnu-api
-```
+## What this adds to the official docs
 
-Configure `ECNU_API_KEY` through the local environment or secret manager when
-execution is needed. Never paste a real key into chat or commit it. Missing
-credentials should not prevent the Agent from writing or reviewing code.
+The [official documentation](https://developer.ecnu.edu.cn/vitepress/llm/model.html)
+is the contract and changes often, so the skill links to it instead of copying
+it, and keeps only what the docs do not give an Agent:
 
-## Where to go
-
-| Need | Resource |
+| Need | Where |
 |---|---|
-| Start a normal integration | [SKILL.md](SKILL.md) |
-| Find the relevant official endpoint contract | [Endpoint map](references/api_reference.md) |
-| Image edits, multimodal retrieval, LangChain embeddings, thinking/tool history, Anthropic SDK | [Integration recipes](references/examples.md) |
-| WorkBuddy desktop custom-model setup | [WorkBuddy recipe](references/workbuddy_setup.md) |
-| Model choice or current account facts | [Model/account pointers](references/models.md) |
-| Diagnose a failure or select a live probe | [Targeted diagnosis](references/workflows.md) |
-| Inspect dated evidence | [Known deviations](references/known_deviations.md) |
-| Maintain this repository | [AGENTS.md](AGENTS.md) |
-| Inspect the refactor's acceptance evidence | [Acceptance record](docs/skill-refactor-plan.md) |
+| Which protocol, model and official page fit a task | [SKILL.md](SKILL.md) |
+| Small ECNU-specific recipes, each covered by an offline test | [Recipes](references/examples.md) |
+| Concurrency, retries, timeouts, cost and error handling in production | [Engineering](references/engineering.md) |
+| Read-only audit or migration of an existing integration | [Audit](references/audit.md) |
+| Current model snapshot and account pages | [Models](references/models.md) |
+| Symptoms, current live deviations, and how to rerun them | [Troubleshooting](references/troubleshooting.md) |
 
-The older [Agent-development notes](references/agent_development.md) remain to
-preserve historical prompt-fixture references in the observation log. They are
-not part of the default integration reading path or a current model benchmark.
-
-## Validation and evidence
-
-The existing runner and unit tests are retained. Maintainer commands are in
-`AGENTS.md`; they are not steps for an Agent editing someone else's application.
-Live checks require appropriate authorization and a cumulative credit budget.
-A documentation edit is not a new live test: observation dates and statuses must
-not be refreshed without reproducing the relevant behavior.
-
-Use current official pages for changing contracts, models, prices, and quotas.
-Use local recipes to save integration work and dated observations to diagnose
-specific discrepancies. Do not assume compatibility with every upstream feature.
+Every live observation names a runner case in `scripts/smoke_test.py`, so it
+can be reproduced or retired after an ECNU release. History lives in Git:
+observations that no longer reproduce are deleted, not archived. Maintainer
+rules are in [AGENTS.md](AGENTS.md).
 
 ## Disclaimer
 

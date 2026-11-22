@@ -83,25 +83,19 @@ class RepositoryValidatorHelpersTest(unittest.TestCase):
         )
         self.assertNotIn("binary.dat", names)
 
-    def test_known_deviation_schema_and_status(self) -> None:
-        valid = """## Invalid token model list
-
-- Tested at: 2026-08-23T00:00:00Z
-- Environment: Python 3.11, direct HTTP, personal token
-- Protocol and endpoint: OpenAI-compatible `GET /models`
-- Documented expectation: authentication error
-- Observed behavior: empty list
-- Reproduction conditions: use an invalid synthetic token
-- Impact: empty data can be mistaken for success
-- Recommended fallback: reject an empty list as inconclusive
-- Status: active
-"""
-        self.assertEqual(validate_skill.validate_known_deviations_text(valid), [])
-        for status in validate_skill.ALLOWED_DEVIATION_STATUSES:
-            candidate = valid.replace("Status: active", f"Status: {status}")
-            self.assertEqual(validate_skill.validate_known_deviations_text(candidate), [])
-        invalid = valid.replace("Status: active", "Status: permanent")
-        self.assertTrue(validate_skill.validate_known_deviations_text(invalid))
+    def test_broken_links_and_anchors_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.md").write_text(
+                "# Real heading\n[ok](b.md#start-here) [bad](b.md#nope) "
+                "[gone](c.md) [self](#real-heading) [web](https://example.test/x)\n",
+                encoding="utf-8",
+            )
+            (root / "b.md").write_text("## Start `here`\n```\n# fenced\n```\n", encoding="utf-8")
+            self.assertEqual(
+                validate_skill.broken_links(root),
+                ["broken anchor in a.md: b.md#nope", "broken link in a.md: c.md"],
+            )
 
 
 class CurrentRepositoryContractsTest(unittest.TestCase):
@@ -170,6 +164,92 @@ class CurrentRepositoryContractsTest(unittest.TestCase):
         self.assertEqual(fields["response_format"].get_payload(decode=True), b"b64_json")
         self.assertEqual(fields["image"].get_payload(decode=True), image_bytes)
 
+    def test_decision_recipe_posts_systemone_and_validates_answers(self) -> None:
+        import requests
+
+        text = (ROOT / "references/examples.md").read_text(encoding="utf-8")
+        section = text.split("## Structured decision\n", 1)[1].split("\n## ", 1)[0]
+        code, = re.findall(r"```python\n(.*?)\n```", section, re.S)
+        example, = re.findall(r"```json\n(.*?)\n```", section, re.S)
+        questions = json.loads(example)["questions"]
+        good = {
+            "topic": {"type": "choice", "choice": "math", "probabilities": {"math": 0.7, "physics": 0.3}, "confidence": 0.7},
+            "complete": {"type": "noul", "noul": 0.6, "probabilities": {"yes": 0.6, "no": 0.4}, "confidence": 0.6},
+            "quality": {"type": "score", "score": 1.5, "probabilities": {"0": 0.1, "1": 0.3, "2": 0.6}, "confidence": 0.6},
+        }
+        bodies = [
+            (200, {"answers": good}),
+            (200, {"answers": {"topic": good["topic"]}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "probabilities": {"math": 0.7, "physics": 0.7}}}}),
+            (200, {"answers": {**good, "complete": {**good["complete"], "type": "bool"}}}),
+            (200, {"answers": {**good, "quality": "2"}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "confidence": 0.3}}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "probabilities": {"math": True, "physics": False}, "confidence": 1.0}}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "probabilities": {"math": 1.0, "physics": 0.0}, "confidence": True}}}),
+            (422, {"detail": [{"msg": "state must not be null"}]}),
+            (400, {"error": {"message": "context overflow"}}),
+        ]
+        sent = []
+
+        def send(request, **kwargs):
+            sent.append(request)
+            self.assertEqual(kwargs["timeout"], 190)
+            response = requests.Response()
+            response.status_code, body = bodies[len(sent) - 1]
+            response._content = json.dumps(body).encode()
+            return response
+
+        with patch.dict(os.environ, {"ECNU_API_KEY": "test-key"}),                 patch("requests.sessions.Session.send", side_effect=send):
+            for index in range(len(bodies)):
+                with self.subTest(body=index):
+                    namespace = {"state": "Submitted answer: 3", "questions": questions}
+                    if index == 0:
+                        exec(code, namespace)
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            exec(code, namespace)
+            for state, invalid in (("x", {}), ("x", {str(i): {} for i in range(65)}), (None, questions)):
+                with self.assertRaises(ValueError):
+                    exec(code, {"state": state, "questions": invalid})
+        self.assertEqual(len(sent), len(bodies))
+        request = sent[0]
+        self.assertEqual(request.url, "https://chat.ecnu.edu.cn/open/api/v1/systemone")
+        self.assertEqual(request.headers["Authorization"], "Bearer test-key")
+        self.assertEqual(json.loads(request.body), {
+            "model": "ecnu-decision", "state": "Submitted answer: 3", "questions": questions,
+        })
+
+    def test_engineering_failure_classifier_follows_side_effects(self) -> None:
+        text = (ROOT / "references/engineering.md").read_text(encoding="utf-8")
+        code, = re.findall(r"```python\n(.*?)\n```", text, re.S)
+        namespace = {}
+        exec(code, namespace)
+        classify = namespace["classify_failure"]
+        cases = [
+            (("/chat/completions", None, b"", True), "stop"),
+            (("/images/generations", 502, b"Bad Gateway"), "stop"),
+            (("/embeddings", None, b"", True), "retry"),
+            (("/systemone", 504, b'{"detail": "timeout"}'), "retry"),
+            (("/chat/completions", 429, b'{"detail": "busy"}'), "retry"),
+            (("/chat/completions", 401, '{"detail": "x"}'), "check-account"),
+            (("/chat/completions", 422, b'{"detail": []}'), "fix-request"),
+            (("/audio/speech", 400, b"bad"), "fix-request"),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args[:2]):
+                self.assertEqual(classify(*args)[0], expected)
+        action, summary = classify("/chat/completions", 500, b"Internal Server Error")
+        self.assertEqual(action, "stop")
+        self.assertIn("plain-text", summary)
+        self.assertNotIn("plain-text", classify("/rerank", 500, b'{"error": {}}')[1])
+        self.assertLessEqual(len(classify("/rerank", 400, b"x" * 1000)[1]), 220)
+        limit = namespace["MAX_RETRIES"]
+        self.assertEqual(classify("/chat/completions", 429, b"", attempt=limit - 1)[0], "retry")
+        action, summary = classify("/chat/completions", 429, b"", attempt=limit)
+        self.assertEqual(action, "check-account")
+        self.assertIn("quota", summary)
+        self.assertEqual(classify("/embeddings", 503, b"", attempt=limit)[0], "stop")
+
     def test_multimodal_recipe_preserves_image_objects(self) -> None:
         import requests
 
@@ -202,10 +282,10 @@ class CurrentRepositoryContractsTest(unittest.TestCase):
     def test_documentation_can_quote_embedding_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "ecnu-api"
-            shutil.copytree(
-                ROOT, root,
-                ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".live-artifacts"),
-            )
+            for source in validate_skill.iter_repository_files(ROOT):
+                target = root / source.relative_to(ROOT)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
             examples = root / "references/examples.md"
             examples.write_text(
                 examples.read_text(encoding="utf-8")
@@ -274,9 +354,22 @@ class CurrentRepositoryContractsTest(unittest.TestCase):
         text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertEqual(validate_skill.validate_agents_text(text), [])
 
-    def test_known_deviations_repository_contract(self) -> None:
-        text = (ROOT / "references/known_deviations.md").read_text(encoding="utf-8")
-        self.assertEqual(validate_skill.validate_known_deviations_text(text), [])
+    def test_observed_rows_name_existing_runner_cases(self) -> None:
+        import smoke_test
+
+        text = (ROOT / "references/troubleshooting.md").read_text(encoding="utf-8")
+        text = text.split("## Start from the symptom\n", 1)[1].split("\n## ", 1)[0]
+        rows =[line for line in text.splitlines() if line.startswith("| ") and "---" not in line][1:]
+        known = {case.case_id for case in smoke_test.build_cases()}
+        self.assertTrue(rows)
+        for row in rows:
+            evidence = row.rstrip(" |").rsplit("|", 1)[1]
+            with self.subTest(evidence=evidence.strip()):
+                self.assertRegex(evidence, r"docs|\d{4}-\d{2}-\d{2}")
+                if re.search(r"\d{4}-\d{2}-\d{2}", evidence):
+                    cases = re.findall(r"`([a-z0-9_]+)`", evidence)
+                    self.assertTrue(cases, "an observed row must name a runner case")
+                    self.assertLessEqual(set(cases), known)
 
     def test_live_artifact_directory_is_ignored(self) -> None:
         text = (ROOT / ".gitignore").read_text(encoding="utf-8")

@@ -463,6 +463,31 @@ class TransportBudgetAndCleanupTest(unittest.TestCase):
         self.assertEqual(second_record["result"], "skipped")
         self.assertIn("more than once", second_record["notes"][0])
 
+    def test_local_client_error_without_request_does_not_stop_later_cases(self) -> None:
+        def executor(attempts):  # type: ignore[no-untyped-def]
+            return lambda context, spec: smoke_test.Execution(
+                smoke_test.HttpResult(None, {}, b"", "TypeError"), "mock", attempts=attempts
+            )
+
+        local = smoke_test._case(
+            "local", ("core",), "test", smoke_test.OPENAI_BASE + "/test", "ecnu-plus",
+            {}, "sdk setup", "generic", (200,), cost=0.1, custom_executor=executor(0),
+        )
+        later = replace(local, case_id="later", custom_executor=executor(1))
+        last = replace(local, case_id="last")
+        with smoke_test.temporary_artifacts() as directory:
+            context = smoke_test.RunContext("test-key", 1.0, directory, smoke_test.CreditBudget(10.0))
+            first = smoke_test.run_one(context, local)
+            self.assertEqual(context.budget.reserved, 0.0)
+            self.assertEqual(context.estimated_consumed_credits, 0.0)
+            records = [first] + [smoke_test.run_one(context, spec) for spec in (later, last)]
+        self.assertEqual(records[0]["actual_response_shape"]["estimated_consumed_credits"], 0.0)
+        self.assertEqual(records[0]["result"], "inconclusive")
+        self.assertIn("before any request", records[0]["notes"][0])
+        self.assertEqual(records[1]["result"], "inconclusive")
+        self.assertIn("ambiguous", records[1]["notes"][0])
+        self.assertEqual(records[2]["result"], "skipped")
+
     def test_unattempted_preflight_skip_releases_reservation(self) -> None:
         skipped = smoke_test._case(
             "unavailable",
@@ -733,7 +758,7 @@ class PreflightMatcherTest(unittest.TestCase):
             }
         }
         credits, basis = smoke_test.estimate_consumed_credits(spec, 200, shape)
-        self.assertAlmostEqual(credits, 0.0372)
+        self.assertAlmostEqual(credits, 0.0366)
         self.assertIn("ecnu-max", basis)
         self.assertIn("base/off-peak", basis)
         self.assertIn("peak multiplier not applied", basis)
@@ -773,6 +798,65 @@ class PreflightMatcherTest(unittest.TestCase):
         for spec in smoke_test.build_cases():
             if spec.model == "ecnu-rerank":
                 self.assertEqual(spec.estimated_credits, 0.05)
+
+    def test_base64_embedding_vectors_are_counted_as_float32(self) -> None:
+        import base64
+        import struct
+
+        encoded = base64.b64encode(struct.pack("<1024f", *([0.5] * 1024))).decode()
+        partial = base64.b64encode(struct.pack("<1024f", *([0.5] * 1024)) + b"x").decode()
+        for embedding, expected in ((encoded, [1024]), ([0.5] * 1024, [1024]), ("not base64!", [0]), (partial, [0])):
+            body = {"data": [{"index": 0, "embedding": embedding}], "usage": {"prompt_tokens": 1}}
+            response = smoke_test.HttpResult(200, {"content-type": "application/json"}, json.dumps(body).encode())
+            with self.subTest(kind=type(embedding).__name__, expected=expected):
+                shape = smoke_test.summarize_response("embedding", response)
+                self.assertEqual(shape["vector_lengths"], expected)
+                self.assertEqual(smoke_test.case_response_matches(self.case("openai_sdk_embedding"), 200, shape), expected == [1024])
+
+    def test_decision_requires_typed_answers_and_valid_probabilities(self) -> None:
+        spec = self.case("decision_three_types")
+        answers = {
+            "topic": {"type": "choice", "choice": "math", "probabilities": {"math": 0.9, "physics": 0.1}, "confidence": 0.9},
+            "complete": {"type": "noul", "noul": 0.8, "probabilities": {"yes": 0.8, "no": 0.2}, "confidence": 0.8},
+            "quality": {"type": "score", "score": 1.7, "probabilities": {"0": 0.1, "1": 0.1, "2": 0.8}, "confidence": 0.8},
+        }
+
+        def shape(payload):  # type: ignore[no-untyped-def]
+            response = smoke_test.HttpResult(200, {"content-type": "application/json"}, json.dumps(payload).encode())
+            return smoke_test.summarize_response("decision", response)
+
+        valid = {"answers": answers, "gateway": {"requested_model": "ecnu-decision"}, "usage": {"input_tokens": 9, "output_tokens": 0}}
+        self.assertTrue(smoke_test.case_response_matches(spec, 200, shape(valid)))
+        swapped = {**valid, "answers": {**answers, "complete": {**answers["complete"], "type": "choice"}}}
+        unnormalized = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": 0.9, "physics": 0.9}}}}
+        wrong_confidence = {**valid, "answers": {**answers, "topic": {**answers["topic"], "confidence": 0.5}}}
+        missing_gateway = {"answers": answers}
+        bool_probabilities = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": True, "physics": False}, "confidence": 1.0}}}
+        bool_confidence = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": 1.0, "physics": 0.0}, "confidence": True}}}
+        for payload in (swapped, unnormalized, wrong_confidence, missing_gateway, {"answers": {}}, bool_probabilities, bool_confidence):
+            with self.subTest(payload=payload):
+                self.assertFalse(smoke_test.case_response_matches(spec, 200, shape(payload)))
+        for status in (200, None, 400):
+            credits, basis = smoke_test.estimate_consumed_credits(spec, status, shape(valid))
+            self.assertEqual(credits, spec.estimated_credits)
+            self.assertGreater(credits, 0.0)
+            self.assertIn("free", basis)
+        self.assertIn("ecnu-decision", smoke_test.DOCUMENTED_MODELS)
+
+    def test_effort_only_cases_treat_reasoning_tokens_as_thinking(self) -> None:
+        def shape(usage):  # type: ignore[no-untyped-def]
+            body = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": usage}
+            response = smoke_test.HttpResult(200, {"content-type": "application/json"}, json.dumps(body).encode())
+            return smoke_test.summarize_response("chat", response)
+
+        for case_id, usage in (
+            ("effort_only_ecnu_plus", {"completion_tokens": 9, "reasoning_tokens": 7}),
+            ("effort_only_ecnu_max", {"completion_tokens": 9, "completion_tokens_details": {"reasoning_tokens": 7}}),
+        ):
+            with self.subTest(case_id=case_id):
+                spec = self.case(case_id)
+                self.assertFalse(smoke_test.case_response_matches(spec, 200, shape(usage)))
+                self.assertTrue(smoke_test.case_response_matches(spec, 200, shape({"completion_tokens": 2})))
 
     def test_image_edit_and_generation_charge_only_success_or_ambiguous_attempt(self) -> None:
         for endpoint in ("/images/generations", "/images/edits"):

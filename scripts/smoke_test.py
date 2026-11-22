@@ -105,6 +105,7 @@ DOCUMENTED_MODELS = frozenset(
         "ecnu-rerank-vl",
         "ecnu-image",
         "ecnu-tts",
+        "ecnu-decision",
     }
 )
 ALIASES = frozenset(
@@ -995,6 +996,17 @@ def _visual_behavior(text: str, compatibility: bool) -> str:
     return "strip-image" if compatibility and text else "other"
 
 
+def _vector_length(embedding: list[Any] | str) -> int:
+    """Count floats in a list or in an encoding_format=base64 float32 string."""
+    if isinstance(embedding, list):
+        return len(embedding)
+    try:
+        size = len(base64.b64decode(embedding, validate=True))
+    except ValueError:
+        return 0
+    return size // 4 if size % 4 == 0 else 0
+
+
 def _summarize_embedding(payload: Mapping[str, Any]) -> dict[str, Any]:
     data = payload.get("data")
     items = data if isinstance(data, list) else []
@@ -1003,7 +1015,7 @@ def _summarize_embedding(payload: Mapping[str, Any]) -> dict[str, Any]:
         "top_level_keys": sorted(payload.keys()),
         "count": len(items),
         "indexes": [item.get("index") for item in items if isinstance(item, dict)],
-        "vector_lengths": [len(item.get("embedding", [])) for item in items if isinstance(item, dict) and isinstance(item.get("embedding"), list)],
+        "vector_lengths": [_vector_length(item.get("embedding")) for item in items if isinstance(item, dict) and isinstance(item.get("embedding"), (list, str))],
         "model": _safe_model_label(payload.get("model")),
         "usage_keys": _usage_keys(payload),
         "usage_counters": _usage_counters(payload),
@@ -1020,6 +1032,40 @@ def _summarize_rerank(payload: Mapping[str, Any]) -> dict[str, Any]:
         "indexes": [item.get("index") for item in items if isinstance(item, dict)],
         "score_types": [type(item.get("relevance_score")).__name__ for item in items if isinstance(item, dict)],
         "documents_present": ["document" in item for item in items if isinstance(item, dict)],
+    }
+
+
+def _summarize_decision(payload: Mapping[str, Any]) -> dict[str, Any]:
+    answers = payload.get("answers")
+    items = answers if isinstance(answers, dict) else {}
+    types: dict[str, Any] = {}
+    probabilities_valid: dict[str, bool] = {}
+    for question_id, answer in list(items.items())[:MAX_SANITIZED_ITEMS]:
+        answer = answer if isinstance(answer, dict) else {}
+        probabilities = answer.get("probabilities")
+        values = list(probabilities.values()) if isinstance(probabilities, dict) else []
+        numeric = bool(values) and all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 1
+            for value in values
+        )
+        confidence = answer.get("confidence")
+        types[str(question_id)] = answer.get("type")
+        probabilities_valid[str(question_id)] = (
+            numeric
+            and abs(sum(values) - 1) <= 1e-3
+            and isinstance(confidence, (int, float))
+            and not isinstance(confidence, bool)
+            and abs(confidence - max(values)) <= 1e-3
+        )
+    gateway = payload.get("gateway")
+    return {
+        "valid_json": True,
+        "top_level_keys": sorted(payload.keys()),
+        "answer_types": types,
+        "probabilities_valid": probabilities_valid,
+        "requested_model": _safe_model_label(gateway.get("requested_model")) if isinstance(gateway, dict) else None,
+        "usage_keys": _usage_keys(payload),
+        "usage_counters": _usage_counters(payload),
     }
 
 
@@ -1149,6 +1195,8 @@ def summarize_response(kind: str, response: HttpResult, *, secrets: Iterable[str
         return _summarize_embedding(payload)
     if kind == "rerank":
         return _summarize_rerank(payload)
+    if kind == "decision":
+        return _summarize_decision(payload)
     if kind in {"structured", "structured_object"}:
         return _summarize_structured(payload, require_schema=kind == "structured")
     if kind in {"anthropic", "anthropic_vision_compat"}:
@@ -1246,6 +1294,14 @@ def response_matches(kind: str, status: int | None, shape: Mapping[str, Any]) ->
             and len(score_types) == count
             and all(score_type in {"float", "int"} for score_type in score_types)
         )
+    if kind == "decision":
+        validity = shape.get("probabilities_valid")
+        return (
+            isinstance(validity, dict)
+            and bool(validity)
+            and all(validity.values())
+            and shape.get("requested_model") == "ecnu-decision"
+        )
     if kind in {"anthropic", "anthropic_vision_compat"}:
         return bool(shape.get("content_count")) and bool(shape.get("text_present"))
     if kind == "tts":
@@ -1313,6 +1369,8 @@ def estimate_consumed_credits(
         return 0.05, "official fixed embedding price per attempted call"
     if spec.endpoint.endswith("/rerank"):
         return 0.05, "official fixed rerank price per attempted call"
+    if spec.endpoint.endswith("/systemone"):
+        return spec.estimated_credits, "ecnu-decision is free only for a limited time and has no later published price; planned allowance counted"
     if spec.endpoint.endswith("/audio/speech"):
         return 5.0, "official fixed TTS price per attempted call"
     if spec.endpoint.endswith(("/images/generations", "/images/edits")):
@@ -1330,9 +1388,9 @@ def estimate_consumed_credits(
     uncached = max(input_tokens - cached_subset, 0.0)
     model = _effective_dialog_model(spec.model)
     miss_rate, hit_rate, output_rate = (
-        (300.0, 60.0, 1200.0)
+        (300.0, 30.0, 1200.0)
         if model == "ecnu-max"
-        else (100.0, 20.0, 400.0)
+        else (100.0, 10.0, 400.0)
     )
     credits = (
         uncached * miss_rate
@@ -1399,6 +1457,15 @@ def case_response_matches(
         return bool(shape.get("result_count")) and all(
             shape.get("documents_present", [])
         )
+    if spec.case_id in {"effort_only_ecnu_max", "effort_only_ecnu_plus"}:
+        counters = shape.get("usage_counters") or {}
+        # ecnu-plus reports reasoning tokens top-level, ecnu-max under completion_tokens_details.
+        reasoning_tokens = _counter(counters, "reasoning_tokens") or _counter(
+            counters, "completion_tokens_details", "reasoning_tokens"
+        )
+        return not shape.get("reasoning_content_present") and not reasoning_tokens
+    if spec.case_id == "decision_three_types":
+        return shape.get("answer_types") == DECISION_EXPECTED_TYPES
     if spec.case_id == "tts_xiayu_pcm":
         return bool(shape.get("pcm_headers_complete"))
     if spec.response_kind == "vision":
@@ -1535,8 +1602,9 @@ def _sdk_error(exc: Exception, transport: Any = None) -> HttpResult:
 class RecordingHttpxTransport:
     """Sync wrapper used to prove SDK POST attempt counts."""
 
-    def __init__(self, inner: Any):
+    def __init__(self, inner: Any, httpx_module: Any = None):
         self.inner = inner
+        self.httpx = httpx_module
         self.attempt_count = 0
         self.json_bodies: list[Any] = []
         self.response_limit_exceeded = False
@@ -1549,7 +1617,9 @@ class RecordingHttpxTransport:
         except (TypeError, UnicodeDecodeError, json.JSONDecodeError):
             self.json_bodies.append(None)
         response = self.inner.handle_request(request_obj)
-        import httpx
+        httpx = self.httpx
+        if httpx is None:
+            import httpx
 
         owner = self
         inner_stream = response.stream
@@ -1619,11 +1689,14 @@ def openai_sdk_executor(resource: str, payload: Mapping[str, Any]) -> CustomExec
 def anthropic_sdk_executor(payload: Mapping[str, Any]) -> CustomExecutor:
     def execute(context: RunContext, spec: CaseSpec) -> Execution | SkipExecution:
         try:
-            import httpx
             from anthropic import Anthropic
+            try:
+                import httpx2 as httpx  # anthropic>=2 rejects clients from the plain httpx package
+            except ImportError:
+                import httpx
         except ImportError:
             return SkipExecution("optional anthropic/httpx dependency is not installed")
-        transport = RecordingHttpxTransport(httpx.HTTPTransport())
+        transport = RecordingHttpxTransport(httpx.HTTPTransport(), httpx)
         client_http = httpx.Client(transport=transport, timeout=context.timeout)
         try:
             client = Anthropic(api_key=context.api_key, base_url=ANTHROPIC_BASE, timeout=context.timeout, max_retries=0, http_client=client_http)
@@ -1921,9 +1994,9 @@ def _auth_cases() -> list[CaseSpec]:
             STATUS_URL,
             None,
             None,
-            "The public service-status page should be reachable.",
+            "The service-status page is reachable; it may redirect to ECNU single sign-on.",
             "generic",
-            (200,),
+            (200, 302),
             method="GET",
             headers_kind="public",
             requires_valid_auth=False,
@@ -2037,6 +2110,21 @@ def _chat_response_cases() -> list[CaseSpec]:
             cost=0.15,
         )
     )
+    enabled = {"thinking": {"type": "enabled"}}
+    effort_rows = [
+        ("effort_unsupported_ecnu_plus", "ecnu-plus", {**enabled, "reasoning_effort": "high"}, "generic", (400, 422), "ecnu-plus documents only low, medium and xhigh."),
+        ("effort_undocumented_ecnu_max", "ecnu-max", {**enabled, "reasoning_effort": "medium"}, "generic", (400, 422), "ecnu-max documents only low, high and max."),
+        ("effort_only_ecnu_max", "ecnu-max", {"reasoning_effort": "low"}, "chat", (200,), "Without thinking enabled, reasoning_effort is ignored."),
+        ("effort_only_ecnu_plus", "ecnu-plus", {"reasoning_effort": "low"}, "chat", (200,), "Without thinking enabled, reasoning_effort is ignored."),
+    ]
+    for case_id, model, extra, kind, statuses, expectation in effort_rows:
+        payload = {**_chat_payload(model, 512), **extra}
+        cases.append(
+            _case(
+                case_id, ("core",), "OpenAI-compatible", endpoint, model, payload,
+                expectation, kind, statuses, cost=_minimum_output_credit(model, payload) + 0.01,
+            )
+        )
     tool = {
         "model": "ecnu-plus",
         "messages": [{"role": "user", "content": "请调用 echo 工具，value 必须是 ping，不要直接回答。"}],
@@ -2158,6 +2246,35 @@ def _embedding_rerank_cases() -> list[CaseSpec]:
     for case_id, payload, statuses, expectation in rerank_rows:
         cases.append(_case(case_id, ("core",), "Cohere-compatible rerank", endpoint, "ecnu-rerank", payload, expectation, "rerank", statuses, cost=0.05))
     return cases
+
+
+DECISION_QUESTIONS = {
+    "topic": {
+        "type": "choice",
+        "instructions": "这段文字属于哪个学科？",
+        "criteria": {"math": "数学", "physics": "物理"},
+    },
+    "complete": {"type": "noul", "instructions": "文字是否给出了结论？"},
+    "quality": {
+        "type": "score",
+        "instructions": "表述清晰程度如何？",
+        "criteria": ["不清晰", "一般", "清晰"],
+    },
+}
+DECISION_EXPECTED_TYPES = {key: value["type"] for key, value in DECISION_QUESTIONS.items()}
+
+
+def _decision_cases() -> list[CaseSpec]:
+    endpoint = OPENAI_BASE + "/systemone"
+    state = "勾股定理：直角三角形两直角边的平方和等于斜边的平方。"
+    rows = [
+        ("decision_three_types", {"model": "ecnu-decision", "state": state, "questions": DECISION_QUESTIONS}, (200,), "choice, noul and score answers echo question IDs with probabilities summing to 1."),
+        ("decision_bool_type", {"model": "ecnu-decision", "state": state, "questions": {"q": {"type": "bool", "instructions": "是否给出结论？"}}}, (400, 422), "The yes/no type is noul; bool is rejected."),
+    ]
+    return [
+        _case(case_id, ("core",), "ECNU decision (SystemOne)", endpoint, "ecnu-decision", payload, expectation, "decision", statuses, cost=1.0)
+        for case_id, payload, statuses, expectation in rows
+    ]
 
 
 def _vision_structured_error_cases() -> list[CaseSpec]:
@@ -2340,9 +2457,9 @@ def _compatibility_cases() -> list[CaseSpec]:
         ("anthropic_sonnet_mapping", "claude-sonnet-4-20250514", {}, (200,), "The sonnet alias is accepted; its response label does not prove effective ecnu-plus routing."),
         ("anthropic_opus_mapping", "claude-opus-4-1-20250805", {}, (200,), "The opus alias is accepted; its response label does not prove effective ecnu-max routing."),
         ("anthropic_max_1m_fallback_plain_max", "ecnu-max", {}, (200,), "Plain ecnu-max is the explicit control and fallback for suffix-specific failures."),
-        ("anthropic_max_1m", "ecnu-max[1m]", {}, (200,), "The [1m] suffix is documented compatibility metadata."),
+        ("anthropic_max_1m", "ecnu-max[1m]", {}, (200,), "The docs retired the [1m] suffix; unrecognized names are documented to map to ecnu-plus."),
         ("anthropic_effort_none", "ecnu-max", {"output_config": {"effort": "none"}}, (200,), "output_config.effort none disables thinking."),
-        ("anthropic_effort_low", "ecnu-max", {"output_config": {"effort": "low"}}, (200,), "A valid non-none effort is accepted."),
+        ("anthropic_effort_low", "ecnu-max", {"output_config": {"effort": "low"}, "max_tokens": 256}, (200,), "A valid non-none effort is accepted; thinking needs room before text."),
         ("anthropic_invalid_effort", "ecnu-max", {"output_config": {"effort": "invalid"}}, (400, 422), "Unsupported effort values are rejected."),
         ("anthropic_missing_model", None, {}, (400, 422), "model is required."),
     ]
@@ -2365,7 +2482,10 @@ def _compatibility_cases() -> list[CaseSpec]:
                 expectation,
                 "anthropic" if 200 in statuses else "generic",
                 statuses,
-                cost=0.08 if _effective_dialog_model(model) == "ecnu-max" else 0.04,
+                cost=max(
+                    0.08 if _effective_dialog_model(model) == "ecnu-max" else 0.04,
+                    _minimum_output_credit(model, payload),
+                ),
                 headers_kind="anthropic",
             )
         )
@@ -2485,6 +2605,7 @@ def build_cases() -> list[CaseSpec]:
         _auth_cases()
         + _chat_response_cases()
         + _embedding_rerank_cases()
+        + _decision_cases()
         + _vision_structured_error_cases()
         + _optional_sdk_cases()
         + _compatibility_cases()
@@ -2557,6 +2678,9 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
     if spec.model and isinstance(shape.get("model"), str):
         shape["response_model_matches_request"] = shape["model"] == spec.model
     consumed, credit_basis = estimate_consumed_credits(spec, response.status, shape)
+    if executed.attempts == 0:
+        context.budget.release_unattempted(spec.estimated_credits)
+        consumed, credit_basis = 0.0, "no request was sent"
     if executed.attempts > 1:
         additional = spec.estimated_credits * (executed.attempts - 1)
         consumed += additional
@@ -2573,7 +2697,10 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
         and _local_401_has_control(context, spec)
     )
 
-    if response.transport_error:
+    if response.transport_error and executed.attempts == 0:
+        result = "inconclusive"
+        notes = ["local client error before any request was sent"]
+    elif response.transport_error:
         result = "inconclusive"
         notes = ["ambiguous transport outcome; the POST was not retried"]
     elif shape.get("media_verification_inconclusive"):
@@ -2630,7 +2757,7 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
     elif spec.requires_valid_auth:
         if response.status in {401, 403} and not local_401_accepted:
             context.stop_reason = f"conservative stop after authenticated HTTP {response.status}"
-        elif response.transport_error and spec.method == "POST":
+        elif response.transport_error and spec.method == "POST" and executed.attempts:
             context.stop_reason = "conservative stop after an ambiguous authenticated POST"
 
     return make_case_record(
