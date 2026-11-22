@@ -2,12 +2,12 @@
 name: ecnu-api
 description: >
   Connect an application, SDK or coding agent to the ECNU / ChatECNU LLM Open
-  Platform at chat.ecnu.edu.cn, harden it for production, or diagnose an ECNU
-  API failure. Covers chat, thinking, tools, vision, Responses, JSON output,
+  Platform at chat.ecnu.edu.cn, audit or migrate an existing integration,
+  harden it for production, or diagnose an ECNU API failure. Covers chat, thinking, tools, vision, Responses, JSON output,
   text/image embeddings and rerank, ecnu-decision classification and scoring,
   image generation/editing, TTS, Anthropic-compatible clients, concurrency,
-  retries and credit cost. Use whenever code or a tool talks to an ECNU API key
-  or ecnu-* model. Not for general ECNU information or unrelated model questions.
+  retries and credit cost. Use whenever code or config contains
+  chat.ecnu.edu.cn/open/api, ECNU_API_KEY or an ecnu-* model name. Not for general ECNU information or unrelated model questions.
 ---
 
 # ECNU API integration
@@ -77,6 +77,7 @@ Open only the row you need. Official pages are under
 | Embed an iframe or link a prefilled question | [Embed](https://developer.ecnu.edu.cn/vitepress/llm/api/embediframe.html), [URL chat](https://developer.ecnu.edu.cn/vitepress/llm/api/urlchat.html) | Tickets are credentials; opening a submit link sends data |
 | Model choice, prices, quotas, data handling | [Models](https://developer.ecnu.edu.cn/vitepress/llm/model.html), [quota](https://developer.ecnu.edu.cn/vitepress/llm/limit.html) | [Model snapshot and account pages](references/models.md) |
 | Workers, batch jobs, retries, cost control | — | [Engineering](references/engineering.md) |
+| Check, migrate or productionize an existing ECNU integration | [Release notes](https://developer.ecnu.edu.cn/vitepress/llm/release.html) | [Audit checklist](references/audit.md): read-only report first |
 | An error or unexpected behavior | [Error codes](https://developer.ecnu.edu.cn/vitepress/llm/error.html) | [Troubleshooting](references/troubleshooting.md) |
 
 Protocol compatibility does not mean every OpenAI or Anthropic field works.

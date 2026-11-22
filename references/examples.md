@@ -55,8 +55,10 @@ Use the current [embedding](https://developer.ecnu.edu.cn/vitepress/llm/api/embe
 and [rerank](https://developer.ecnu.edu.cn/vitepress/llm/api/rerank.html) contracts.
 Both VL models accept strings or objects with `text`, `image`, or both. An
 `image` is a complete PNG/JPEG base64 data URL, not a remote URL or Chat
-Completions `image_url` content block. Validate image type, decoded size
-(at most 5 MiB) and pixel count (at most 16 million) before encoding/uploading.
+Completions `image_url` content block. Validate image type, size and pixel
+count (at most 16 million) before sending. The page caps each image at 5 MiB
+without saying whether before or after base64 encoding, so keep the encoded
+data URL under 5 MiB to satisfy both readings.
 Each object holds one image; video and multi-image objects are unsupported.
 
 Request-building fragment for an existing HTTP client; `image_data_url` has
@@ -81,7 +83,7 @@ rerank_payload = {
 
 Send `embedding_payload` as JSON to `POST /embeddings`, or `rerank_payload`
 as JSON to `POST /rerank`, using the OpenAI-compatible base and Bearer auth.
-Keep requests serial when checking both. For embedding, cap batches at 32
+Keep requests serial when checking both. For `ecnu-embedding-vl`, cap batches at 32
 items; supported dimensions are 1024/2048/4096, with 4096 as the default.
 Check the returned count, unique `index` values and finite vector lengths
 against the inputs and requested dimension. `encoding_format=base64` instead
@@ -335,7 +337,9 @@ if message.stop_reason != "end_turn" or not text:
 print(text)
 ```
 
-Use plain model names unless the caller actually requires the `[1m]` context
-signal. Do not automatically treat a suffix-specific `401` as a bad key; follow
-[the suffix observation](troubleshooting.md#start-from-the-symptom).
-Do not silently downgrade context or map unsupported effort values.
+Use plain model names: the docs retired the `[1m]` suffix, and it currently
+returns `401` ([observation](troubleshooting.md#start-from-the-symptom)). The SDK's
+`api_key` sends `x-api-key`; both it and `Authorization: Bearer` (the docs'
+`ANTHROPIC_AUTH_TOKEN`) were accepted on 2026-11-23 (runner cases
+`anthropic_sdk_plus`, `anthropic_plus`). Effort values are mapped per model as
+the Anthropic page documents; do not remap them yourself.

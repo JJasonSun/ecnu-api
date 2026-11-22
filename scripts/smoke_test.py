@@ -2450,7 +2450,7 @@ def _compatibility_cases() -> list[CaseSpec]:
         ("anthropic_sonnet_mapping", "claude-sonnet-4-20250514", {}, (200,), "The sonnet alias is accepted; its response label does not prove effective ecnu-plus routing."),
         ("anthropic_opus_mapping", "claude-opus-4-1-20250805", {}, (200,), "The opus alias is accepted; its response label does not prove effective ecnu-max routing."),
         ("anthropic_max_1m_fallback_plain_max", "ecnu-max", {}, (200,), "Plain ecnu-max is the explicit control and fallback for suffix-specific failures."),
-        ("anthropic_max_1m", "ecnu-max[1m]", {}, (200,), "The [1m] suffix is documented compatibility metadata."),
+        ("anthropic_max_1m", "ecnu-max[1m]", {}, (200,), "The docs retired the [1m] suffix; unrecognized names are documented to map to ecnu-plus."),
         ("anthropic_effort_none", "ecnu-max", {"output_config": {"effort": "none"}}, (200,), "output_config.effort none disables thinking."),
         ("anthropic_effort_low", "ecnu-max", {"output_config": {"effort": "low"}, "max_tokens": 256}, (200,), "A valid non-none effort is accepted; thinking needs room before text."),
         ("anthropic_invalid_effort", "ecnu-max", {"output_config": {"effort": "invalid"}}, (400, 422), "Unsupported effort values are rejected."),

@@ -20,6 +20,7 @@ REQUIRED_FILES = [
     "references/models.md",
     "references/examples.md",
     "references/engineering.md",
+    "references/audit.md",
     "references/troubleshooting.md",
     "scripts/smoke_test.py",
     "scripts/validate_skill.py",

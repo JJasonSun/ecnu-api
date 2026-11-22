@@ -37,6 +37,7 @@ it, and keeps only what the docs do not give an Agent:
 | Which protocol, model and official page fit a task | [SKILL.md](SKILL.md) |
 | Small ECNU-specific recipes, each covered by an offline test | [Recipes](references/examples.md) |
 | Concurrency, retries, timeouts, cost and error handling in production | [Engineering](references/engineering.md) |
+| Read-only audit or migration of an existing integration | [Audit](references/audit.md) |
 | Current model snapshot and account pages | [Models](references/models.md) |
 | Symptoms, current live deviations, and how to rerun them | [Troubleshooting](references/troubleshooting.md) |
 

@@ -1,7 +1,6 @@
 # ecnu-api repository guide
 
-This repository is an Agent Skill, not an application. These rules are for
-maintaining it, not for projects that consume the skill.
+This Agent Skill repository's rules are for maintainers, not consuming projects.
 
 ## What belongs in the skill
 
@@ -15,17 +14,19 @@ model snapshot in `references/models.md`. Do not keep history: Git has it.
 - `SKILL.md`: entry point, connection example, single routing table.
 - `references/examples.md`: ECNU-specific recipes; each code block has an offline test.
 - `references/engineering.md`: concurrency, retries, timeouts, cost, errors.
+- `references/audit.md`: read-only checklist for existing integrations; each check cites evidence.
 - `references/models.md`: dated model snapshot and account pages.
 - `references/troubleshooting.md`: symptom table, live deviations, runner usage.
 - `scripts/smoke_test.py`: live runner; `scripts/validate_skill.py` and `tests/`: offline checks.
 
 ## Rules
 
-- Every observed (non-documented) row names a runner case; add the case first.
-- Do not invent limits or copy upstream model defaults into ECNU requests.
-- Change an observation date only after rerunning its case.
-- After an ECNU release: recheck the docs, run `--profile all`, update the model
-  snapshot, delete rows whose case now passes, and redate the rest.
+- Every observed row names a runner case; add the case first, and change its
+  date only after rerunning it. Never invent limits or copy upstream defaults.
+- A sentence about what the docs say links the page it comes from. After an
+  ECNU release, reread every linked page (not just the release notes) and check
+  those sentences and the runner's expectation strings; then run `--profile all`,
+  update the snapshot, delete rows whose case passes, and redate the rest.
 - Update installed copies via `npx skills update -g ecnu-api`, not by copying.
 
 ## Validation
