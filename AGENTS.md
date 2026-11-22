@@ -1,45 +1,49 @@
 # ecnu-api repository guide
 
-## Purpose
+This repository is an Agent Skill, not an application. These rules are for
+maintaining it, not for projects that consume the skill.
 
-This is an Agent Skills package, not a production application.
-Optimize for less repeated setup, lookup, and troubleshooting work.
-These instructions apply to maintaining this repository, not consuming apps.
+## What belongs in the skill
 
-## File routing
+The official ECNU docs are the contract. Keep only what they do not provide:
+task routing, production practice, small recipes, and current live deviations.
+Link to official values instead of copying them; the one exception is the dated
+model snapshot in `references/models.md`. Do not keep history: Git has it.
 
-- `SKILL.md`: small integration entry point and task routing.
-- `references/api_reference.md`: official endpoint links, not copied field tables.
-- `references/models.md`: selection defaults and current account-source pointers.
-- `references/examples.md`: ECNU-specific integration recipes.
-- `references/workbuddy_setup.md`: WorkBuddy desktop custom-model configuration recipe.
-- `references/workflows.md`: symptom-driven, opt-in diagnostics.
-- `references/known_deviations.md`: dated live evidence; preserve dates and scope.
-- `references/agent_development.md`: historical guidance cited by old observations.
-- `scripts/` and `tests/`: existing diagnostics and offline validation.
-- `docs/skill-refactor-plan.md`: refactor scope and acceptance evidence.
+## Files
 
-## Editing rules
+- `SKILL.md`: entry point, connection example, single routing table.
+- `references/examples.md`: ECNU-specific recipes; each code block has an offline test.
+- `references/engineering.md`: concurrency, retries, timeouts, cost, errors.
+- `references/models.md`: dated model snapshot and account pages.
+- `references/troubleshooting.md`: symptom table, live deviations, runner usage.
+- `scripts/smoke_test.py`: live runner; `scripts/validate_skill.py` and `tests/`: offline checks.
 
-- Prefer current official contracts; keep observed differences separately dated.
-- Add content only when it saves a concrete lookup, decision, mistake, or repeated action.
-- Keep everyday integration separate from platform audits and repository maintenance.
-- Do not invent API limits or copy upstream model defaults into ECNU requests.
-- Do not refresh a test date or label a snippet live-verified without a real test.
-- Update installed copies via `npx skills update -g ecnu-api`, not manual copying.
+## Rules
+
+- Every observed (non-documented) row names a runner case; add the case first.
+- Do not invent limits or copy upstream model defaults into ECNU requests.
+- Change an observation date only after rerunning its case.
+- After an ECNU release: recheck the docs, run `--profile all`, update the model
+  snapshot, delete rows whose case now passes, and redate the rest.
+- Update installed copies via `npx skills update -g ecnu-api`, not by copying.
 
 ## Validation
 
+Manage Python with `uv`; do not assume `python3` is on PATH (e.g. on Windows).
+
 ```bash
-python3 scripts/validate_skill.py
-python3 -m unittest discover -s tests -v
-python3 -m compileall scripts tests
+uv run --no-project python scripts/validate_skill.py
+uv run --no-project --with requests --with httpx --with openai --with anthropic python -m unittest discover -s tests -v
+uv run --no-project python -m compileall scripts tests
 uvx --from skills-ref agentskills validate "$PWD"
 git diff --check
 ```
 
-Report unavailable checks as not run. Review tracked changes for secrets.
-Live checks use only `ECNU_API_KEY`, serial requests, no ambiguous POST retry,
-and an approved cumulative budget. Never commit private inputs, reasoning,
-credentials, generated media, one-time URLs, or raw responses. Keep sanitized
-live artifacts under the ignored `.live-artifacts/` directory.
+Report unavailable checks as not run. Live checks read only `ECNU_API_KEY`, run
+serially and never retry an ambiguous POST. Maintainer live tests of this
+repository are pre-authorized with no credit ceiling; pass a large explicit
+`--max-credits` (the runner requires a finite value). This does not change the
+skill's 50-credit default for consuming apps. Keep sanitized reports under the
+ignored `.live-artifacts/`; never commit keys, private inputs, reasoning,
+generated media, one-time URLs or raw responses.

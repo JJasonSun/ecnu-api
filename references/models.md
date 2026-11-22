@@ -1,86 +1,63 @@
-# Model and account pointers
+# Models and account pointers
 
 Keep the user's working model unless they need selection help. For a new
 ordinary text task, `ecnu-plus` is the local starting default; consider
 `ecnu-max` for more demanding tasks. This is a practical starting point, not
 a measured quality or latency ranking.
 
-## Find the current answer
+## Account pages
 
-| Question | Source |
+| Question | Official page |
 |---|---|
-| Supported model IDs, aliases, vision, context, underlying models | [Official model page](https://developer.ecnu.edu.cn/vitepress/llm/model.html) |
-| Thinking switch and protocol-specific effort | [Thinking](https://developer.ecnu.edu.cn/vitepress/llm/thinking.html), then the chosen [endpoint](api_reference.md) |
-| Token prices, fixed request costs, shared allowances, quota windows | [Current quota and pricing page](https://developer.ecnu.edu.cn/vitepress/llm/limit.html) |
-| Obtain/configure credentials | [Authorization](https://developer.ecnu.edu.cn/vitepress/llm/authorization.html) |
-| Residency, fallback, submitted data, retention, contractual requirements | [Data security](https://developer.ecnu.edu.cn/vitepress/llm/security.html) and [developer agreement](https://developer.ecnu.edu.cn/vitepress/llm/tos.html) |
+| Prices, peak hours, cache discount, 7-day quota, concurrency caps | [Quota and pricing](https://developer.ecnu.edu.cn/vitepress/llm/limit.html) |
+| Creating and managing keys | [My token](https://developer.ecnu.edu.cn/vitepress/llm/authorization.html) |
+| Residency, cloud fallback, use of submitted data | [Data security](https://developer.ecnu.edu.cn/vitepress/llm/security.html), [developer agreement](https://developer.ecnu.edu.cn/vitepress/llm/tos.html) |
 | What changed and when | [Release notes](https://developer.ecnu.edu.cn/vitepress/llm/release.html) |
-| Is there a reported incident? | [Service status](https://chat.ecnu.edu.cn/status) |
+| Reported incidents | [Service status](https://chat.ecnu.edu.cn/status) (requires ECNU single sign-on) |
 
-## Select the capability, not just a new model name
+## Current model snapshot
 
-The [2026-09-30 release](https://developer.ecnu.edu.cn/vitepress/llm/release.html)
-added multimodal retrieval and image editing. The
-[model page](https://developer.ecnu.edu.cn/vitepress/llm/model.html) also
-records the 2026-10-01 backend update: `ecnu-max` is now
-DeepSeek-V4.1-Flash-1017 and `ecnu-plus` is Qwen3.8-Flash-Next. Contract
-checked 2026-10-19; these are documented capabilities, not new live-test
-results.
+Checked against the model page on 2026-11-23. Use it to choose, then recheck
+the official page before displaying or depending on a value.
 
-| Model | Backend in the current model page | Integration choice |
+| Model | Backend | Use for |
 |---|---|---|
-| `ecnu-embedding-small` | bge-m3 | Keep for existing text-only, 1024-dimensional indexes |
-| `ecnu-embedding-vl` | Qwen3-VL-Embedding-8B | Text, one image per item, or both; default 4096 dimensions, optional 1024/2048/4096 |
+| `ecnu-plus` | Qwen3.8-Flash-Next | General text, tools, image input, JSON; 256K context; effort `low` / `medium` / `xhigh` |
+| `ecnu-max` | DeepSeek-V4.1-Flash-1017 | Harder text, code and image tasks; 512K context; effort `low` / `high` / `max` |
+| `ecnu-embedding-small` | bge-m3 | Text-only, 1024-dimensional indexes |
+| `ecnu-embedding-vl` | Qwen3-VL-Embedding-8B | Text, one image per item, or both; 4096 dimensions by default, 1024/2048 optional |
 | `ecnu-rerank` | bge-reranker-v2-m3 | Text query and text candidates |
-| `ecnu-rerank-vl` | Qwen3-VL-Reranker-8B | Text/image query and candidates; rerank an already retrieved candidate set |
-| `ecnu-image` | qwen-image-2.1 | Generate from text or edit one existing image; different request formats and prompt handling |
+| `ecnu-rerank-vl` | Qwen3-VL-Reranker-8B | Text/image query and candidates |
+| `ecnu-decision` | d3-flash | Classification, yes/no or ordered scoring over supplied material ([recipe](examples.md#structured-decision)) |
+| `ecnu-image` | qwen-image-2.1 | Generate from text or edit one image ([recipe](examples.md#image-generation-and-editing)) |
+| `ecnu-tts` | Fun-CosyVoice3-0.5B | Speech from up to 4096 characters, 16 voices |
 
-The same page currently lists `ecnu-max` with 512K context, up to 256K output,
-and `low` / `high` / `max` effort, and `ecnu-plus` with 256K context, up to
-128K output, and `low` / `medium` / `xhigh` effort. Per-user concurrency caps
-are 3 for `ecnu-max` and 5 for `ecnu-plus`, counted independently. Recheck
-those values before displaying or depending on them. `ecnu-tts` is
-Fun-CosyVoice3-0.5B with 16 voices and a 4096-character input limit.
+Thinking is off by default on both chat models. Historical names such as
+`ecnu-reasoner` (max with thinking on) and `ecnu-turbo` are compatibility
+aliases; use the primary names in new code.
 
-Use the [retrieval and image recipes](examples.md) for the differences that
-affect requests. Equal vector dimensions do not imply compatible embedding
-spaces: changing embedding models requires re-embedding the indexed items and
-using that same model and dimensions for queries. A reranker can change without
-replacing stored vectors; its relevance scores are not scientific or educational
-quality judgments and should not be compared across models.
-
-The current model page documents image understanding on both `ecnu-max` and
-`ecnu-plus`. The 2026-10-01 backend update moved `ecnu-max` to
-DeepSeek-V4.1-Flash-1017, ending the 2026-09-18 interval when it was text-only.
-Keep stable ECNU aliases in requests and recheck backend labels before
-displaying them. Do not relabel old generated assets as output from a newly
-announced backend.
+Equal vector dimensions do not imply compatible embedding spaces: changing
+embedding models requires re-embedding the indexed items and querying with that
+same model and dimension. A reranker can change without replacing stored
+vectors; its scores are not comparable across models.
 
 ## ECNU-specific boundaries
 
-Use primary ECNU model names for new integrations rather than upstream names
-or historical aliases. A response's `model` metadata need not echo the requested
-name. `/models` is runtime visibility, not a capability or authentication test.
+A response's `model` field is a backend label and need not echo the requested
+name. `/models` shows runtime visibility, not a capability, contract, or
+authentication result.
 
-Upstream model cards can explain model design, but do not establish ECNU's
-request fields, thinking defaults, context units, output limits, performance,
-or deployment path. Do not copy upstream serving flags into requests.
+Upstream model cards explain model design but do not establish ECNU's request
+fields, thinking defaults, context units, output limits, performance, or
+deployment path. Do not copy upstream serving flags into requests.
 
-For thinking controls, follow the [current recipe](examples.md#thinking-and-tool-history).
-The [2026-09-12 effort observations](known_deviations.md#ecnu-max-reasoning-effort-as-thinking-trigger)
-are scoped to that deployment; they are not current cross-model defaults.
-The [WorkBuddy recipe](workbuddy_setup.md) covers clients that cannot send the
-explicit thinking switch.
+For thinking controls, follow the [current recipe](examples.md#thinking-and-tool-history);
+for concurrency, peak pricing and caching, see [engineering](engineering.md).
 
-For a cost calculation, fetch current prices and show the input/output and
-cache assumptions. Do not assume a cache-hit ratio or treat estimated usage as
-verified account debit. A code-only task does not require a cost calculation.
+For a cost calculation, fetch current prices and state the input/output, cache
+and peak-hour assumptions. Estimated usage is not verified account debit. A
+code-only task does not require a cost calculation.
 
-If current documentation is unavailable, do not invent current account values.
-Continue independent implementation work with the relevant local recipe,
-identify the unverified decision, and defer only what depends on that value.
-
-Historical model/Agent discussion remains in
-[agent_development.md](agent_development.md) to preserve references from past
-observations. It is not required reading for an ordinary integration and is
-not a current model benchmark.
+If the official pages are unreachable, do not present this snapshot as freshly
+verified. Continue independent implementation work and name the value that
+could not be rechecked.

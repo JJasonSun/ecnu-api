@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -16,11 +17,10 @@ REQUIRED_FILES = [
     "SKILL.md",
     "README.md",
     "AGENTS.md",
-    "references/api_reference.md",
     "references/models.md",
     "references/examples.md",
-    "references/workflows.md",
-    "references/known_deviations.md",
+    "references/engineering.md",
+    "references/troubleshooting.md",
     "scripts/smoke_test.py",
     "scripts/validate_skill.py",
     "tests/test_smoke_test.py",
@@ -55,36 +55,6 @@ MEDIA_SUFFIXES = {
     ".aac", ".flac", ".gif", ".jpeg", ".jpg", ".mp3", ".mp4",
     ".opus", ".pcm", ".png", ".wav", ".webp",
 }
-ALLOWED_DEVIATION_STATUSES = {
-    "active", "resolved", "inconclusive", "not-retested",
-}
-DEVIATION_FIELD_ALIASES = {
-    "tested at": "tested_at",
-    "test date": "tested_at",
-    "date": "tested_at",
-    "environment": "environment",
-    "test environment": "environment",
-    "protocol and endpoint": "protocol_endpoint",
-    "protocol endpoint": "protocol_endpoint",
-    "protocol": "protocol",
-    "endpoint": "endpoint",
-    "documented expectation": "documented_expectation",
-    "observed behavior": "observed_behavior",
-    "actual behavior": "observed_behavior",
-    "reproduction conditions": "reproduction_conditions",
-    "reproduction": "reproduction_conditions",
-    "impact": "impact",
-    "recommended fallback": "fallback",
-    "application fallback": "fallback",
-    "fallback": "fallback",
-    "status": "status",
-}
-REQUIRED_DEVIATION_FIELDS = {
-    "tested_at", "environment", "documented_expectation", "observed_behavior",
-    "reproduction_conditions", "impact", "fallback", "status",
-}
-
-
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     if not text.startswith("---\n"):
         raise ValueError("SKILL.md must start with YAML frontmatter")
@@ -121,11 +91,26 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return fields, body
 
 
+def git_ignored_files(root: Path) -> set[Path]:
+    """Untracked files Git ignores; they cannot be committed by accident."""
+    try:
+        output = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
+            capture_output=True, check=True, timeout=30,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return set()  # not a Git checkout (e.g. an installed copy): scan everything
+    return {(root / name).resolve() for name in output.decode("utf-8", "replace").split("\0") if name}
+
+
 def iter_repository_files(root: Path = ROOT) -> list[Path]:
     excluded = {".git", ".venv", "__pycache__", LIVE_ARTIFACT_DIR}
+    ignored = git_ignored_files(root)
     return [
         path for path in root.rglob("*")
-        if path.is_file() and not any(part in excluded for part in path.parts)
+        if path.is_file()
+        and not any(part in excluded for part in path.relative_to(root).parts)
+        and path.resolve() not in ignored
     ]
 
 
@@ -207,47 +192,38 @@ def validate_agents_text(text: str) -> list[str]:
     return errors
 
 
-def _normalize_label(label: str) -> str:
-    label = re.sub(r"[`*_]", "", label).strip().lower().replace("&", " and ")
-    label = re.sub(r"[/_-]+", " ", label)
-    return re.sub(r"\s+", " ", label)
+def heading_anchors(text: str) -> set[str]:
+    """GitHub-style anchors for Markdown headings outside code fences."""
+    anchors: set[str] = set()
+    in_fence = False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and (match := re.match(r"#{1,6}\s+(.+?)\s*$", line)):
+            slug = re.sub(r"[^\w\- ]", "", match.group(1).lower()).replace(" ", "-")
+            anchors.add(slug)
+    return anchors
 
 
-def _deviation_entries(text: str) -> list[tuple[str, dict[str, str]]]:
-    headings = list(re.finditer(r"(?m)^#{2,3}\s+(.+?)\s*$", text))
-    entries: list[tuple[str, dict[str, str]]] = []
-    for index, heading in enumerate(headings):
-        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
-        fields: dict[str, str] = {}
-        for line in text[heading.end() : end].splitlines():
-            match = re.match(r"^\s*[-*]\s+(.+?)\s*:\s*(.*?)\s*$", line)
-            if not match:
-                continue
-            alias = DEVIATION_FIELD_ALIASES.get(_normalize_label(match.group(1)))
-            if alias:
-                fields[alias] = match.group(2).strip(" *`")
-        if fields:
-            entries.append((heading.group(1).strip(), fields))
-    return entries
-
-
-def validate_known_deviations_text(text: str) -> list[str]:
-    entries = _deviation_entries(text)
-    if not entries:
-        return ["known_deviations.md has no field-based deviation entries"]
-
+def broken_links(root: Path) -> list[str]:
+    """Relative Markdown links whose file or heading anchor does not exist."""
     errors: list[str] = []
-    for title, fields in entries:
-        missing = REQUIRED_DEVIATION_FIELDS - fields.keys()
-        if "protocol_endpoint" not in fields and not {"protocol", "endpoint"} <= fields.keys():
-            missing.add("protocol_endpoint")
-        empty = {name for name, value in fields.items() if not value}
-        if missing or empty:
-            labels = ", ".join(sorted(missing | empty))
-            errors.append(f"deviation {title!r} is missing fields: {labels}")
-        status = fields.get("status", "").lower()
-        if status and status not in ALLOWED_DEVIATION_STATUSES:
-            errors.append(f"deviation {title!r} has invalid status: {status}")
+    for path in iter_repository_files(root):
+        if path.suffix != ".md":
+            continue
+        text = path.read_text(encoding="utf-8")
+        for target in LINK_RE.findall(text):
+            if "://" in target or target.startswith("mailto:"):
+                continue
+            file_part, _, anchor = target.partition("#")
+            target_path = (path.parent / file_part).resolve() if file_part else path
+            relative = path.relative_to(root)
+            if not target_path.exists():
+                errors.append(f"broken link in {relative}: {target}")
+            elif anchor and target_path.suffix == ".md" and anchor not in heading_anchors(
+                target_path.read_text(encoding="utf-8")
+            ):
+                errors.append(f"broken anchor in {relative}: {target}")
     return errors
 
 
@@ -290,12 +266,7 @@ def collect_errors(root: Path = ROOT) -> list[str]:
         errors.append("frontmatter description exceeds 1024 characters")
     if len(body.splitlines()) > 500:
         errors.append("SKILL.md body exceeds the recommended 500 lines")
-    for target in LINK_RE.findall(body):
-        if "://" in target or target.startswith("#"):
-            continue
-        file_target = target.split("#", 1)[0]
-        if file_target and not (root / file_target).exists():
-            errors.append(f"broken SKILL.md link: {target}")
+    errors.extend(broken_links(root))
 
     for path in iter_text_files(root):
         content, exceeded = read_bounded_text(path)
@@ -322,11 +293,6 @@ def collect_errors(root: Path = ROOT) -> list[str]:
     agents = root / "AGENTS.md"
     if agents.is_file():
         errors.extend(validate_agents_text(agents.read_text(encoding="utf-8")))
-    deviations = root / "references/known_deviations.md"
-    if deviations.is_file():
-        errors.extend(
-            validate_known_deviations_text(deviations.read_text(encoding="utf-8"))
-        )
     gitignore = root / ".gitignore"
     if gitignore.is_file():
         errors.extend(validate_gitignore_text(gitignore.read_text(encoding="utf-8")))
