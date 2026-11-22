@@ -28,7 +28,7 @@ on timeouts). Set `max_retries=0` and decide per request:
 |---|---|
 | `400` / `422` | Fix the request; `422` carries a `detail` list |
 | `401` | Check the model name first: unsupported models return `401` (*observed*) |
-| `429` | Wait for an in-flight request to finish, then retry with jittered backoff; if the 7-day quota is exhausted, stop |
+| `429` | Wait for an in-flight request to finish, then retry a few times with jittered backoff; if it persists, stop and check the 7-day quota |
 | Plain-text `500` right after an unusual parameter | Likely invalid input (*observed* for unsupported effort and TTS voice); do not retry unchanged |
 | Timeout, dropped connection or `5xx` on embedding, rerank or decision | A bounded retry is safe (no side effects); embedding and rerank are charged per attempt |
 | Same on chat, image or TTS | Do not resubmit automatically: the request may have completed and been charged (image: 30 credits) |
@@ -37,22 +37,28 @@ The docs do not define a body that distinguishes concurrency `429` from quota
 exhaustion; use your in-flight count and the usage dashboard.
 
 `classify_failure` encodes this table for a direct-HTTP client. `endpoint` is
-the path after the API base, such as `/chat/completions`:
+the path after the API base, such as `/chat/completions`; `attempt` counts
+earlier tries of the same request, so retries stop after `MAX_RETRIES`:
 
 ```python
 IDEMPOTENT_ENDPOINTS = {"/embeddings", "/rerank", "/systemone"}
+MAX_RETRIES = 3
 
 
-def classify_failure(endpoint, status, body, transport_error=False):
+def classify_failure(endpoint, status, body, transport_error=False, attempt=0):
     """Return (action, summary); action is retry, fix-request, check-account or stop."""
     text = body.decode("utf-8", "replace") if isinstance(body, bytes) else str(body or "")
     summary = f"HTTP {status}: {text[:200]}" if status else "no HTTP response"
     if transport_error or status is None or status >= 500:
         if status is not None and status < 600 and not text.lstrip().startswith(("{", "[")):
             summary += " (plain-text error; check the request values before retrying)"
-        return ("retry" if endpoint in IDEMPOTENT_ENDPOINTS else "stop"), summary
+        retryable = endpoint in IDEMPOTENT_ENDPOINTS and attempt < MAX_RETRIES
+        return ("retry" if retryable else "stop"), summary
     if status == 429:
-        return "retry", summary + " (wait for an in-flight request or check the quota)"
+        if attempt >= MAX_RETRIES:
+            # Concurrency and quota 429s look alike; a persistent one is likely the quota.
+            return "check-account", summary + " (still 429 after retries; check the 7-day quota)"
+        return "retry", summary + " (wait for an in-flight request to finish)"
     if status in (401, 403):
         return "check-account", summary + " (verify the model name before rotating keys)"
     return "fix-request", summary

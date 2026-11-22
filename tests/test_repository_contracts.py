@@ -243,6 +243,12 @@ class CurrentRepositoryContractsTest(unittest.TestCase):
         self.assertIn("plain-text", summary)
         self.assertNotIn("plain-text", classify("/rerank", 500, b'{"error": {}}')[1])
         self.assertLessEqual(len(classify("/rerank", 400, b"x" * 1000)[1]), 220)
+        limit = namespace["MAX_RETRIES"]
+        self.assertEqual(classify("/chat/completions", 429, b"", attempt=limit - 1)[0], "retry")
+        action, summary = classify("/chat/completions", 429, b"", attempt=limit)
+        self.assertEqual(action, "check-account")
+        self.assertIn("quota", summary)
+        self.assertEqual(classify("/embeddings", 503, b"", attempt=limit)[0], "stop")
 
     def test_multimodal_recipe_preserves_image_objects(self) -> None:
         import requests

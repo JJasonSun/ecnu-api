@@ -838,9 +838,25 @@ class PreflightMatcherTest(unittest.TestCase):
                 self.assertFalse(smoke_test.case_response_matches(spec, 200, shape(payload)))
         for status in (200, None, 400):
             credits, basis = smoke_test.estimate_consumed_credits(spec, status, shape(valid))
-            self.assertEqual(credits, 0.0)
+            self.assertEqual(credits, spec.estimated_credits)
+            self.assertGreater(credits, 0.0)
             self.assertIn("free", basis)
         self.assertIn("ecnu-decision", smoke_test.DOCUMENTED_MODELS)
+
+    def test_effort_only_cases_treat_reasoning_tokens_as_thinking(self) -> None:
+        def shape(usage):  # type: ignore[no-untyped-def]
+            body = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": usage}
+            response = smoke_test.HttpResult(200, {"content-type": "application/json"}, json.dumps(body).encode())
+            return smoke_test.summarize_response("chat", response)
+
+        for case_id, usage in (
+            ("effort_only_ecnu_plus", {"completion_tokens": 9, "reasoning_tokens": 7}),
+            ("effort_only_ecnu_max", {"completion_tokens": 9, "completion_tokens_details": {"reasoning_tokens": 7}}),
+        ):
+            with self.subTest(case_id=case_id):
+                spec = self.case(case_id)
+                self.assertFalse(smoke_test.case_response_matches(spec, 200, shape(usage)))
+                self.assertTrue(smoke_test.case_response_matches(spec, 200, shape({"completion_tokens": 2})))
 
     def test_image_edit_and_generation_charge_only_success_or_ambiguous_attempt(self) -> None:
         for endpoint in ("/images/generations", "/images/edits"):

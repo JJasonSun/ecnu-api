@@ -1370,7 +1370,7 @@ def estimate_consumed_credits(
     if spec.endpoint.endswith("/rerank"):
         return 0.05, "official fixed rerank price per attempted call"
     if spec.endpoint.endswith("/systemone"):
-        return 0.0, "ecnu-decision documented as free for a limited time; recheck the quota page"
+        return spec.estimated_credits, "ecnu-decision is free only for a limited time and has no later published price; planned allowance counted"
     if spec.endpoint.endswith("/audio/speech"):
         return 5.0, "official fixed TTS price per attempted call"
     if spec.endpoint.endswith(("/images/generations", "/images/edits")):
@@ -1458,7 +1458,12 @@ def case_response_matches(
             shape.get("documents_present", [])
         )
     if spec.case_id in {"effort_only_ecnu_max", "effort_only_ecnu_plus"}:
-        return not shape.get("reasoning_content_present")
+        counters = shape.get("usage_counters") or {}
+        # ecnu-plus reports reasoning tokens top-level, ecnu-max under completion_tokens_details.
+        reasoning_tokens = _counter(counters, "reasoning_tokens") or _counter(
+            counters, "completion_tokens_details", "reasoning_tokens"
+        )
+        return not shape.get("reasoning_content_present") and not reasoning_tokens
     if spec.case_id == "decision_three_types":
         return shape.get("answer_types") == DECISION_EXPECTED_TYPES
     if spec.case_id == "tts_xiayu_pcm":
@@ -2267,7 +2272,7 @@ def _decision_cases() -> list[CaseSpec]:
         ("decision_bool_type", {"model": "ecnu-decision", "state": state, "questions": {"q": {"type": "bool", "instructions": "是否给出结论？"}}}, (400, 422), "The yes/no type is noul; bool is rejected."),
     ]
     return [
-        _case(case_id, ("core",), "ECNU decision (SystemOne)", endpoint, "ecnu-decision", payload, expectation, "decision", statuses)
+        _case(case_id, ("core",), "ECNU decision (SystemOne)", endpoint, "ecnu-decision", payload, expectation, "decision", statuses, cost=1.0)
         for case_id, payload, statuses, expectation in rows
     ]
 
