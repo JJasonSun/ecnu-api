@@ -477,7 +477,11 @@ class TransportBudgetAndCleanupTest(unittest.TestCase):
         last = replace(local, case_id="last")
         with smoke_test.temporary_artifacts() as directory:
             context = smoke_test.RunContext("test-key", 1.0, directory, smoke_test.CreditBudget(10.0))
-            records = [smoke_test.run_one(context, spec) for spec in (local, later, last)]
+            first = smoke_test.run_one(context, local)
+            self.assertEqual(context.budget.reserved, 0.0)
+            self.assertEqual(context.estimated_consumed_credits, 0.0)
+            records = [first] + [smoke_test.run_one(context, spec) for spec in (later, last)]
+        self.assertEqual(records[0]["actual_response_shape"]["estimated_consumed_credits"], 0.0)
         self.assertEqual(records[0]["result"], "inconclusive")
         self.assertIn("before any request", records[0]["notes"][0])
         self.assertEqual(records[1]["result"], "inconclusive")
@@ -800,7 +804,8 @@ class PreflightMatcherTest(unittest.TestCase):
         import struct
 
         encoded = base64.b64encode(struct.pack("<1024f", *([0.5] * 1024))).decode()
-        for embedding, expected in ((encoded, [1024]), ([0.5] * 1024, [1024]), ("not base64!", [0])):
+        partial = base64.b64encode(struct.pack("<1024f", *([0.5] * 1024)) + b"x").decode()
+        for embedding, expected in ((encoded, [1024]), ([0.5] * 1024, [1024]), ("not base64!", [0]), (partial, [0])):
             body = {"data": [{"index": 0, "embedding": embedding}], "usage": {"prompt_tokens": 1}}
             response = smoke_test.HttpResult(200, {"content-type": "application/json"}, json.dumps(body).encode())
             with self.subTest(kind=type(embedding).__name__, expected=expected):
@@ -826,7 +831,9 @@ class PreflightMatcherTest(unittest.TestCase):
         unnormalized = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": 0.9, "physics": 0.9}}}}
         wrong_confidence = {**valid, "answers": {**answers, "topic": {**answers["topic"], "confidence": 0.5}}}
         missing_gateway = {"answers": answers}
-        for payload in (swapped, unnormalized, wrong_confidence, missing_gateway, {"answers": {}}):
+        bool_probabilities = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": True, "physics": False}, "confidence": 1.0}}}
+        bool_confidence = {**valid, "answers": {**answers, "topic": {**answers["topic"], "probabilities": {"math": 1.0, "physics": 0.0}, "confidence": True}}}
+        for payload in (swapped, unnormalized, wrong_confidence, missing_gateway, {"answers": {}}, bool_probabilities, bool_confidence):
             with self.subTest(payload=payload):
                 self.assertFalse(smoke_test.case_response_matches(spec, 200, shape(payload)))
         for status in (200, None, 400):

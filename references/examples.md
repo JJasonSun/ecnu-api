@@ -244,9 +244,10 @@ for question_id, answer in answers.items():
     if (
         answer.get("type") != questions[question_id]["type"]
         or not values
-        or not all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in values)
+        or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= 1 for v in values)
         or abs(sum(values) - 1) > 1e-3
         or not isinstance(confidence, (int, float))
+        or isinstance(confidence, bool)
         or abs(confidence - max(values)) > 1e-3
     ):
         raise RuntimeError(f"Invalid answer for question {question_id}")

@@ -184,6 +184,8 @@ class CurrentRepositoryContractsTest(unittest.TestCase):
             (200, {"answers": {**good, "complete": {**good["complete"], "type": "bool"}}}),
             (200, {"answers": {**good, "quality": "2"}}),
             (200, {"answers": {**good, "topic": {**good["topic"], "confidence": 0.3}}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "probabilities": {"math": True, "physics": False}, "confidence": 1.0}}}),
+            (200, {"answers": {**good, "topic": {**good["topic"], "probabilities": {"math": 1.0, "physics": 0.0}, "confidence": True}}}),
             (422, {"detail": [{"msg": "state must not be null"}]}),
             (400, {"error": {"message": "context overflow"}}),
         ]

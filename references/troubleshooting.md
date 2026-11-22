@@ -8,8 +8,8 @@ private prompts or reasoning.
 ## Start from the symptom
 
 The **Evidence** column says where a row comes from: the official docs, or a
-live observation with its date and the [runner case](#run-a-live-check) that
-reproduces it. Observations are not guarantees; any ECNU release can change
+live observation with its date (Asia/Shanghai, ECNU's time zone; runner
+reports use UTC) and the [runner case](#run-a-live-check) that reproduces it. Observations are not guarantees; any ECNU release can change
 them, so rerun the case before relying on an old one.
 
 | Symptom | What is happening and what to do | Evidence |
@@ -43,9 +43,12 @@ with POST retries disabled, credits reserved before each request, and reports
 reduced to structure and usage. It reads only `ECNU_API_KEY`. Check current
 prices first; token estimates use off-peak rates.
 
+Use whichever Python launcher the machine has (`python3`, `python`, `py`, or
+`uv run --no-project python`); `python3` is often missing on Windows.
+
 ```bash
-python3 scripts/smoke_test.py --help
-python3 scripts/smoke_test.py --profile core --case models_valid --case effort_only_ecnu_plus --max-credits 1 --output .live-artifacts/check.json
+python scripts/smoke_test.py --help
+python scripts/smoke_test.py --profile core --case models_valid --case effort_only_ecnu_plus --max-credits 1 --output .live-artifacts/check.json
 ```
 
 Pick the case from the Evidence column, or a profile: `auth` (GET only),
@@ -64,7 +67,8 @@ Keep reports under the ignored `.live-artifacts/` directory.
 
 ## Keeping this page current
 
-Latest revalidation: 2026-11-23, every linked official page reread, a full
+Latest revalidation: 2026-11-23 Asia/Shanghai (runner reports from
+2026-11-22T17:18Z onward), every linked official page reread, a full
 `--profile all` run plus the cases above,
 Windows 11 x64, Python 3.14, OpenAI 3.57, Anthropic 2.12, langchain-openai 1.8.5.
 After an ECNU release, rerun `--profile all`: delete rows whose case now

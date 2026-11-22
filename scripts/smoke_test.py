@@ -1001,9 +1001,10 @@ def _vector_length(embedding: list[Any] | str) -> int:
     if isinstance(embedding, list):
         return len(embedding)
     try:
-        return len(base64.b64decode(embedding, validate=True)) // 4
+        size = len(base64.b64decode(embedding, validate=True))
     except ValueError:
         return 0
+    return size // 4 if size % 4 == 0 else 0
 
 
 def _summarize_embedding(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -1053,6 +1054,7 @@ def _summarize_decision(payload: Mapping[str, Any]) -> dict[str, Any]:
             numeric
             and abs(sum(values) - 1) <= 1e-3
             and isinstance(confidence, (int, float))
+            and not isinstance(confidence, bool)
             and abs(confidence - max(values)) <= 1e-3
         )
     gateway = payload.get("gateway")
@@ -2671,6 +2673,9 @@ def run_one(context: RunContext, spec: CaseSpec) -> dict[str, Any]:
     if spec.model and isinstance(shape.get("model"), str):
         shape["response_model_matches_request"] = shape["model"] == spec.model
     consumed, credit_basis = estimate_consumed_credits(spec, response.status, shape)
+    if executed.attempts == 0:
+        context.budget.release_unattempted(spec.estimated_credits)
+        consumed, credit_basis = 0.0, "no request was sent"
     if executed.attempts > 1:
         additional = spec.estimated_credits * (executed.attempts - 1)
         consumed += additional
